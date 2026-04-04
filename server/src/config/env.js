@@ -11,7 +11,9 @@ const envSchema = z.object({
   FRONTEND_URL: z.string(),
   NODE_ENV: z.enum(["development", "production"]).default("development"),
   EMAIL_USER: z.string(),
-  EMAIL_PASS: z.string()
+  EMAIL_PASS: z.string(),
+  GOOGLE_CLIENT_ID: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string()
 });
 
 export const env = envSchema.parse(process.env);

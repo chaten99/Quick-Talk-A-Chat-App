@@ -78,3 +78,26 @@ export const resetPassword = async (req, res, next) => {
         next(error);
     }
 };
+
+export const googleAuth = (req, res) => {
+    const url = authService.getGoogleAuthUrl();
+    res.redirect(url);
+};
+
+export const googleCallback = async (req, res, next) => {
+    try {
+        const { code } = req.query;
+
+        if (!code) {
+            return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?success=false&message=No+authorization+code`);
+        }
+
+        const user = await authService.handleGoogleCallback(code);
+        const token = generateToken({ id: user._id });
+
+        res.cookie("token", token, cookieOptions);
+        return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?success=true`);
+    } catch (error) {
+        return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?success=false&message=${encodeURIComponent(error.message)}`);
+    }
+};

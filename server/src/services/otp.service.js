@@ -9,10 +9,15 @@ const templates = {
 };
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
   auth: {
     user: env.EMAIL_USER,
     pass: env.EMAIL_PASS
+  },
+  tls: {
+    minVersion: "TLSv1.3"
   }
 });
 

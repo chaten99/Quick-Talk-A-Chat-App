@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, logout, sendOTP, signup, verifyOtp, forgotPassword, resetPassword } from "../controllers/auth.controller.js";
+import { login, logout, sendOTP, signup, verifyOtp, forgotPassword, resetPassword, googleAuth, googleCallback } from "../controllers/auth.controller.js";
 import { loginValidator, sendOtpValidator, signupValidator, verifyOtpValidator, forgotPasswordValidator, resetPasswordValidator } from "../validators/auth.validator.js";
 import { validate } from "../middlewares/validation.middleware.js";
 
@@ -13,5 +13,8 @@ router.post("/logout", logout);
 
 router.post("/forgot-password", forgotPasswordValidator, validate, forgotPassword);
 router.post("/reset-password", resetPasswordValidator, validate, resetPassword);
+
+router.get("/google", googleAuth);
+router.get("/google/callback", googleCallback);
 
 export default router;
