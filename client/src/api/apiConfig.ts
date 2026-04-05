@@ -10,6 +10,7 @@ export const API_CONFIG = {
             FORGOT_PASSWORD: '/auth/forgot-password',
             RESET_PASSWORD: '/auth/reset-password',
             GOOGLE: '/auth/google',
+            SESSION: '/auth/session',
         },
     }
 }

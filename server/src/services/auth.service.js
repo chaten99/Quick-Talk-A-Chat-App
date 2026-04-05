@@ -179,3 +179,12 @@ export const handleGoogleCallback = async (code) => {
 
     return user;
 };
+
+export const getMe = async (userId) => {
+    
+    const user = await userRepository.findById(userId);
+    if(!user) {
+        throw new AppError("User not found", 404);
+    }
+    return user;
+}

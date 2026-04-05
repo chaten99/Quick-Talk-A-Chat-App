@@ -16,5 +16,7 @@ export const authApi = {
     forgotPassword: async (data: SendOtp) =>
         apiClient.post(API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD, data),
     resetPassword: async (data: ResetPassword) =>
-        apiClient.post(API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD, data),   
+        apiClient.post(API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD, data),
+    getSession: async () =>
+        apiClient.get(API_CONFIG.ENDPOINTS.AUTH.SESSION),
 }
