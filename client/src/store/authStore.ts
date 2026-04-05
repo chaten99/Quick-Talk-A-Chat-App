@@ -14,7 +14,20 @@ const handleError = (err: unknown): AuthResponse => {
 export const useAuthStore = create<AuthStore>((set) => ({
     user: null,
     loading: false,
+    checkingAuth: true,
     setUser: (user) => set({ user }),
+
+    getSession: async () => {
+        try {
+            set({ checkingAuth: true });
+            const res = await authApi.getSession();
+            set({ user: res.data.data });
+        } catch {
+            set({ user: null });
+        } finally {
+            set({ checkingAuth: false });
+        }
+    },
 
     login: async (data: Login) => {
         try {

@@ -1,21 +1,43 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
 import LoginPage from "./pages/AuthPages/LoginPage";
 import SignupPage from "./pages/AuthPages/SignupPage";
 import ForgotPasswordPage from "./pages/AuthPages/ForgotPasswordPage";
 import GoogleCallbackPage from "./pages/AuthPages/GoogleCallbackPage";
+import HomePage from "./pages/DashboardPages/HomePage";
+import NotFound from "./pages/ErrorPages/NotFound";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
+import GuestRoute from "./components/auth/GuestRoute";
+import ChatLayout from "./components/layout/ChatLayout";
+import { useAuthStore } from "./store/authStore";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const App = () => {
+    const { getSession } = useAuthStore();
+
+    useEffect(() => {
+        getSession();
+    }, [getSession]);
+
     return (
         <Router>
             <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route element={<GuestRoute />}>
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                </Route>
+
                 <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
-                <Route path="/" element={<div className="min-h-screen bg-slate-950 flex items-center justify-center text-white text-xl font-bold tracking-tight">QuickTalk — Home</div>} />
-                <Route path="*" element={<Navigate to="/login" replace />} />
+
+                <Route element={<ProtectedRoute />}>
+                    <Route element={<ChatLayout />}>
+                        <Route path="/" element={<HomePage />} />
+                    </Route>
+                </Route>
+
+                <Route path="*" element={<NotFound />} />
             </Routes>
             
             <ToastContainer

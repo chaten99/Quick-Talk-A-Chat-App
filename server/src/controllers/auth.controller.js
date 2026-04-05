@@ -101,3 +101,9 @@ export const googleCallback = async (req, res, next) => {
         return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?success=false&message=${encodeURIComponent(error.message)}`);
     }
 };
+
+export const getMe = async (req, res) => {
+    const userId = req.userId;
+    const user = await authService.getMe(userId);
+    return responseHelper.success(res, "User retrieved successfully", { id: user._id, email: user.email, username: user.username, avatar: user.avatar });
+}

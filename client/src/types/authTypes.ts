@@ -42,7 +42,9 @@ export type AuthResponse = {
 export type AuthStore = {
     user: User | null;
     loading: boolean;
+    checkingAuth: boolean;
     setUser: (user: User | null) => void;
+    getSession: () => Promise<void>;
     login: (data: Login) => Promise<AuthResponse>;
     logout: () => Promise<void>;
     sendOtp: (data: SendOtp) => Promise<AuthResponse>;
