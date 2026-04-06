@@ -105,5 +105,14 @@ export const googleCallback = async (req, res, next) => {
 export const getMe = async (req, res) => {
     const userId = req.userId;
     const user = await authService.getMe(userId);
-    return responseHelper.success(res, "User retrieved successfully", { id: user._id, email: user.email, username: user.username, avatar: user.avatar });
-}
+    return responseHelper.success(res, "User retrieved successfully", {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        avatar: user.avatar,
+        phone: user.phone || "",
+        authProvider: user.authProvider,
+        friendsCount: user.friends?.length || 0,
+        createdAt: user.createdAt,
+    });
+};

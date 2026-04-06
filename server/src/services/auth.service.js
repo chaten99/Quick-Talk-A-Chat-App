@@ -59,7 +59,6 @@ export const sendOTP = async (email) => {
     return email;
 };
 
-
 export const login = async ({ email, password }) => {
     const user = await userRepository.findByEmail(email);
 
@@ -100,7 +99,6 @@ export const forgotPassword = async (email) => {
 
     return email;
 };
-
 
 export const resetPassword = async ({ email, otp, newPassword }) => {
     const storedData = await redisClient.get(`otp:forgot:${email}`);
@@ -181,10 +179,9 @@ export const handleGoogleCallback = async (code) => {
 };
 
 export const getMe = async (userId) => {
-    
     const user = await userRepository.findById(userId);
-    if(!user) {
+    if (!user) {
         throw new AppError("User not found", 404);
     }
     return user;
-}
+};

@@ -31,6 +31,9 @@ export type User = {
     email?: string;
     phone?: string;
     avatar?: string;
+    authProvider?: string;
+    friendsCount?: number;
+    createdAt?: string;
 }
 
 export type AuthResponse = {
