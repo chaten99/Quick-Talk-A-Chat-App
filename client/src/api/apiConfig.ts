@@ -12,5 +12,22 @@ export const API_CONFIG = {
             GOOGLE: '/auth/google',
             SESSION: '/auth/session',
         },
+        FRIENDS: {
+            LIST: '/friends',
+            SEARCH: '/friends/search',
+            REQUESTS: '/friends/requests',
+            SEND_REQUEST: '/friends/request',
+            ACCEPT_REQUEST: (id: string) => `/friends/request/${id}/accept`,
+            REJECT_REQUEST: (id: string) => `/friends/request/${id}/reject`,
+            CANCEL_REQUEST: (id: string) => `/friends/request/${id}`,
+            REMOVE: (id: string) => `/friends/${id}`,
+        },
+        NOTIFICATIONS: {
+            LIST: '/notifications',
+            UNREAD_COUNT: '/notifications/unread-count',
+            MARK_READ: (id: string) => `/notifications/${id}/read`,
+            MARK_ALL_READ: '/notifications/read-all',
+            CLEAR_ALL: '/notifications/clear-all',
+        },
     }
 }

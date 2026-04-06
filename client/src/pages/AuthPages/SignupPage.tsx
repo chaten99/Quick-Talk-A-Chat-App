@@ -42,7 +42,6 @@ const SignupPage = () => {
         clearErrors("email");
         setSendingOtp(true);
         const res = await sendOtp({ email });
-        console.log(res.message);
         setSendingOtp(false);
         if (res.success) {
             toast.success(res.message);

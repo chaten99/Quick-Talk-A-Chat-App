@@ -34,7 +34,11 @@ const schema = new mongoose.Schema({
     },
     is_online: {
         type: Boolean,
-    }
+    },
+    friends: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    }]
 }, { timestamps: true });
 
 export default mongoose.model("User", schema);

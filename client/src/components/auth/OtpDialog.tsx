@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
 
 const OtpDialog = ({
@@ -15,6 +15,30 @@ const OtpDialog = ({
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [resendTimer, setResendTimer] = useState(120);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    useEffect(() => {
+        intervalRef.current = setInterval(() => {
+            setResendTimer((prev) => {
+                if (prev <= 1) {
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, []);
+
+    const formatTimer = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, "0")}`;
+    };
 
     const handleChange = (index: number, value: string) => {
         if (value.length > 1) return;
@@ -69,9 +93,21 @@ const OtpDialog = ({
     };
 
     const handleResend = () => {
+        if (resendTimer > 0) return;
         onResend();
         setOtp(["", "", "", "", "", ""]);
         setError("");
+        setResendTimer(120);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(() => {
+            setResendTimer((prev) => {
+                if (prev <= 1) {
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
         document.getElementById("otp-0")?.focus();
     };
 
@@ -106,8 +142,8 @@ const OtpDialog = ({
                                 onChange={(e) => handleChange(i, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(i, e)}
                                 className={`w-11 h-14 sm:w-12 sm:h-16 text-center text-2xl font-bold rounded-xl bg-black/40 border transition-all duration-200 outline-none text-white shadow-inner
-                                    ${error 
-                                        ? "border-red-500/50 focus:border-red-500 focus:ring-1 focus:ring-red-500" 
+                                    ${error
+                                        ? "border-red-500/50 focus:border-red-500 focus:ring-1 focus:ring-red-500"
                                         : "border-white/10 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                     }`}
                             />
@@ -135,14 +171,19 @@ const OtpDialog = ({
                     </button>
 
                     <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/10">
-                        <button 
-                            onClick={handleResend} 
-                            className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                        <button
+                            onClick={handleResend}
+                            disabled={resendTimer > 0}
+                            className={`text-sm font-medium transition-colors cursor-pointer ${
+                                resendTimer > 0
+                                    ? "text-slate-600 cursor-not-allowed"
+                                    : "text-indigo-400 hover:text-indigo-300"
+                            }`}
                         >
-                            Resend code
+                            {resendTimer > 0 ? `Resend code (${formatTimer(resendTimer)})` : "Resend code"}
                         </button>
-                        <button 
-                            onClick={onClose} 
+                        <button
+                            onClick={onClose}
                             className="text-sm font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
                         >
                             Cancel

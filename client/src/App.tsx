@@ -5,6 +5,10 @@ import SignupPage from "./pages/AuthPages/SignupPage";
 import ForgotPasswordPage from "./pages/AuthPages/ForgotPasswordPage";
 import GoogleCallbackPage from "./pages/AuthPages/GoogleCallbackPage";
 import HomePage from "./pages/DashboardPages/HomePage";
+import FriendsPage from "./pages/DashboardPages/FriendsPage";
+import AddFriendPage from "./pages/DashboardPages/AddFriendPage";
+import NotificationPage from "./pages/DashboardPages/NotificationPage";
+import ProfilePage from "./pages/DashboardPages/ProfilePage";
 import NotFound from "./pages/ErrorPages/NotFound";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import GuestRoute from "./components/auth/GuestRoute";
@@ -34,6 +38,10 @@ const App = () => {
                 <Route element={<ProtectedRoute />}>
                     <Route element={<ChatLayout />}>
                         <Route path="/" element={<HomePage />} />
+                        <Route path="/friends" element={<FriendsPage />} />
+                        <Route path="/add-friend" element={<AddFriendPage />} />
+                        <Route path="/notifications" element={<NotificationPage />} />
+                        <Route path="/profile" element={<ProfilePage />} />
                     </Route>
                 </Route>
 

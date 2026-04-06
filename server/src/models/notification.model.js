@@ -6,13 +6,16 @@ const schema = new mongoose.Schema({
         ref: "User",
         required: true
     },
+    from_user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+    },
     type: {
         type: String,
-        enum: ["friend_request", "message", "conversation"],
+        enum: ["friend_request", "friend_accepted", "friend_rejected", "message", "conversation"],
     },
-    reference_type: {
+    content: {
         type: String,
-        enum: ["friend_request", "message", "conversation"],
     },
     reference_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -23,5 +26,6 @@ const schema = new mongoose.Schema({
     },
 }, { timestamps: true });
 
+schema.index({ user_id: 1, createdAt: -1 });
 
 export default mongoose.model("Notification", schema);
