@@ -36,6 +36,11 @@ export const verifyOtp = async ({ email, otp }) => {
 };
 
 export const sendOTP = async (email) => {
+    const exist = await userRepository.findByEmail(email);
+    if (exist) {
+        throw new AppError("User already exists", 409);
+    }
+
     const key = `otp:${email}`;
     const existingData = await redisClient.get(key);
 

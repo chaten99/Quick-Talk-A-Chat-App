@@ -2,23 +2,31 @@ import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import AuthLayout from "../../components/auth/AuthLayout";
+import { useAuthStore } from "../../store/authStore";
 
 const GoogleCallbackPage = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const { getSession } = useAuthStore();
 
     useEffect(() => {
-        const success = searchParams.get("success");
-        const message = searchParams.get("message");
+        const completeGoogleLogin = async () => {
+            const success = searchParams.get("success");
+            const message = searchParams.get("message");
 
-        if (success === "true") {
-            toast.success("Login successful");
-            navigate("/", { replace: true });
-        } else {
+            if (success === "true") {
+                await getSession();
+                toast.success("Login successful");
+                navigate("/", { replace: true });
+                return;
+            }
+
             toast.error(message || "Google login failed");
             navigate("/login", { replace: true });
-        }
-    }, [searchParams, navigate]);
+        };
+
+        void completeGoogleLogin();
+    }, [getSession, navigate, searchParams]);
 
     return (
         <AuthLayout>

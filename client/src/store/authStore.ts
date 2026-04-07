@@ -111,4 +111,32 @@ export const useAuthStore = create<AuthStore>((set) => ({
             set({ loading: false });
         }
     },
+
+    updateProfile: async (data: { username: string }) => {
+        try {
+            set({ loading: true });
+            const { profileApi } = await import("../api/profileApi");
+            const res = await profileApi.updateProfile(data);
+            set({ user: res.data.data });
+            return { message: res.data.message, success: true };
+        } catch (err) {
+            return handleError(err);
+        } finally {
+            set({ loading: false });
+        }
+    },
+
+    updateAvatar: async (file: File) => {
+        try {
+            set({ loading: true });
+            const { profileApi } = await import("../api/profileApi");
+            const res = await profileApi.updateAvatar(file);
+            set({ user: res.data.data });
+            return { message: res.data.message, success: true };
+        } catch (err) {
+            return handleError(err);
+        } finally {
+            set({ loading: false });
+        }
+    },
 }));

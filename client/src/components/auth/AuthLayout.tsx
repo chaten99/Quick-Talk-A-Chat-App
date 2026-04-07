@@ -1,4 +1,5 @@
 import React from 'react';
+import BrandLogo from "../ui/BrandLogo";
 
 const AuthLayout = ({ children }: { children: React.ReactNode }) => {
     return (
@@ -9,25 +10,8 @@ const AuthLayout = ({ children }: { children: React.ReactNode }) => {
 
             <div className="w-full max-w-md relative z-10 flex flex-col">
                 <div className="text-center mb-10 animate-fade-in flex justify-center">
-                    <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                            <svg 
-                                className="w-6 h-6 text-white" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                viewBox="0 0 24 24"
-                            >
-                                <path 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round" 
-                                    strokeWidth="2" 
-                                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" 
-                                />
-                            </svg>
-                        </div>
-                        <span className="text-white font-extrabold tracking-tight text-3xl">
-                            QuickTalk
-                        </span>
+                    <div className="inline-flex items-center px-6 py-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-[28px] shadow-[0_22px_55px_rgba(15,23,42,0.45)]">
+                        <BrandLogo mode="full" />
                     </div>
                 </div>
 

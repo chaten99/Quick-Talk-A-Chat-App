@@ -1,15 +1,23 @@
-import { Search, UserMinus } from "lucide-react";
+import { Search, UserMinus, MoreVertical } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFriendStore } from "../../store/friendStore";
 import { useAuthStore } from "../../store/authStore";
+import { useChatStore } from "../../store/chatStore";
+import { chatApi } from "../../api/chatApi";
 import { toast } from "react-toastify";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import { useNavigate } from "react-router-dom";
+import type { AxiosError } from "axios";
 
 const FriendsList = () => {
     const { friends, loading, getFriends, loadMoreFriends, friendsHasMore, removeFriend } = useFriendStore();
     const { user } = useAuthStore();
+    const { upsertConversation, setActiveConversation } = useChatStore();
+    const navigate = useNavigate();
     const [filter, setFilter] = useState("");
     const [confirmTarget, setConfirmTarget] = useState<{ id: string; name: string } | null>(null);
+    const [openingFriendId, setOpeningFriendId] = useState<string | null>(null);
+    const [actionMenuFriendId, setActionMenuFriendId] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -48,8 +56,33 @@ const FriendsList = () => {
         }
     }, [handleScroll]);
 
+    useEffect(() => {
+        if (!actionMenuFriendId) return;
+
+        const handleWindowClick = () => setActionMenuFriendId(null);
+
+        window.addEventListener("click", handleWindowClick);
+        return () => window.removeEventListener("click", handleWindowClick);
+    }, [actionMenuFriendId]);
+
+    const handleOpenConversation = async (friendId: string) => {
+        try {
+            setOpeningFriendId(friendId);
+            setActionMenuFriendId(null);
+            const conversation = await chatApi.getOrCreateConversation(friendId);
+            upsertConversation(conversation);
+            setActiveConversation(conversation._id);
+            navigate("/");
+        } catch (error) {
+            const apiError = error as AxiosError<{ message: string }>;
+            toast.error(apiError.response?.data?.message || "Failed to open conversation");
+        } finally {
+            setOpeningFriendId(null);
+        }
+    };
+
     return (
-        <div className="w-[380px] h-screen bg-[#0c1020] border-r border-white/[0.06] flex flex-col shrink-0">
+        <div className="w-full md:w-[380px] h-full bg-[#0c1020] border-r border-white/[0.06] flex flex-col shrink-0">
             <div className="px-5 pt-6 pb-4">
                 <div className="flex items-center justify-between mb-5">
                     <h2 className="text-xl font-bold text-white tracking-tight">Friends</h2>
@@ -94,7 +127,8 @@ const FriendsList = () => {
                         {filtered.map((friend) => (
                             <div
                                 key={friend._id}
-                                className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/[0.04] transition-all duration-200 group"
+                                onClick={() => handleOpenConversation(friend._id)}
+                                className="relative flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/[0.04] transition-all duration-200 group cursor-pointer"
                             >
                                 <div className="relative">
                                     {friend.avatar ? (
@@ -122,12 +156,48 @@ const FriendsList = () => {
                                         {friend.is_online ? "Online" : friend.email}
                                     </p>
                                 </div>
+                                {openingFriendId === friend._id && (
+                                    <div className="w-4 h-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin shrink-0"></div>
+                                )}
                                 <button
-                                    onClick={() => setConfirmTarget({ id: friend._id, name: friend.username })}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100 cursor-pointer"
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuFriendId((currentId) => currentId === friend._id ? null : friend._id);
+                                    }}
+                                    className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer shrink-0"
+                                >
+                                    <MoreVertical className="w-4 h-4" strokeWidth={2} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuFriendId(null);
+                                        setConfirmTarget({ id: friend._id, name: friend.username });
+                                    }}
+                                    className="hidden md:flex w-8 h-8 rounded-lg items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100 cursor-pointer"
                                 >
                                     <UserMinus className="w-4 h-4" strokeWidth={1.8} />
                                 </button>
+                                {actionMenuFriendId === friend._id && (
+                                    <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="md:hidden absolute right-3 top-[52px] z-20 min-w-[152px] rounded-2xl border border-white/[0.08] bg-[#11172a] p-1.5 shadow-[0_18px_40px_rgba(2,8,23,0.45)]"
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setActionMenuFriendId(null);
+                                                setConfirmTarget({ id: friend._id, name: friend.username });
+                                            }}
+                                            className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-300 hover:bg-red-500/10 transition-all duration-200 cursor-pointer"
+                                        >
+                                            <UserMinus className="w-4 h-4" strokeWidth={1.8} />
+                                            Remove Friend
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                         {loading && (
@@ -144,7 +214,7 @@ const FriendsList = () => {
                 )}
             </div>
 
-            <div className="px-4 py-4 border-t border-white/[0.06]">
+            <div className="px-4 py-4 border-t border-white/[0.06] hidden md:block">
                 <div className="flex items-center gap-3 px-2">
                     {user?.avatar ? (
                         <img

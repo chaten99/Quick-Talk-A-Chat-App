@@ -10,13 +10,24 @@ const cookieOptions = {
     maxAge: 7 * 24 * 60 * 60 * 1000
 };
 
+const buildAuthUser = (user) => ({
+    id: user._id,
+    email: user.email,
+    username: user.username,
+    avatar: user.avatar,
+    phone: user.phone || "",
+    authProvider: user.authProvider,
+    friendsCount: user.friends?.length || 0,
+    createdAt: user.createdAt,
+});
+
 export const signup = async (req, res, next) => {
     try {
         const user = await authService.signup(req.body);
         const token = generateToken({ id: user._id });
 
         res.cookie("token", token, cookieOptions);
-        return responseHelper.success(res, "Signup successful", { id: user._id }, 201);
+        return responseHelper.success(res, "Signup successful", buildAuthUser(user), 201);
     } catch (error) {
         next(error);
     }
@@ -46,7 +57,7 @@ export const login = async (req, res, next) => {
         const token = generateToken({ id: user._id });
 
         res.cookie("token", token, cookieOptions);
-        return responseHelper.success(res, "Login successful", { id: user._id });
+        return responseHelper.success(res, "Login successful", buildAuthUser(user));
     } catch (error) {
         next(error);
     }
@@ -105,14 +116,5 @@ export const googleCallback = async (req, res, next) => {
 export const getMe = async (req, res) => {
     const userId = req.userId;
     const user = await authService.getMe(userId);
-    return responseHelper.success(res, "User retrieved successfully", {
-        id: user._id,
-        email: user.email,
-        username: user.username,
-        avatar: user.avatar,
-        phone: user.phone || "",
-        authProvider: user.authProvider,
-        friendsCount: user.friends?.length || 0,
-        createdAt: user.createdAt,
-    });
+    return responseHelper.success(res, "User retrieved successfully", buildAuthUser(user));
 };

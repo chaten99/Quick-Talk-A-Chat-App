@@ -6,15 +6,25 @@ import { CheckCheck, UserCheck, UserX, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 
 const NotificationList = () => {
-    const { notifications, loading, hasMore, fetchNotifications, loadMore, markAsRead, markAllAsRead, clearAll, unreadCount } = useNotificationStore();
+    const { notifications, loading, fetchNotifications, loadMore, markAsRead, markAllAsRead, clearAll, unreadCount } = useNotificationStore();
     const { acceptRequest, rejectRequest } = useFriendStore();
     const { user } = useAuthStore();
     const scrollRef = useRef<HTMLDivElement>(null);
     const [actedRequestIds, setActedRequestIds] = useState<Set<string>>(new Set());
+    const [now, setNow] = useState(0);
 
     useEffect(() => {
         fetchNotifications();
     }, [fetchNotifications]);
+
+    useEffect(() => {
+        const updateNow = () => setNow(Date.now());
+        updateNow();
+
+        const intervalId = window.setInterval(updateNow, 60000);
+
+        return () => window.clearInterval(intervalId);
+    }, []);
 
     const handleScroll = useCallback(() => {
         const el = scrollRef.current;
@@ -58,7 +68,11 @@ const NotificationList = () => {
     };
 
     const timeAgo = (dateStr: string) => {
-        const diff = Date.now() - new Date(dateStr).getTime();
+        if (!now) {
+            return "";
+        }
+
+        const diff = now - new Date(dateStr).getTime();
         const mins = Math.floor(diff / 60000);
         if (mins < 1) return "Just now";
         if (mins < 60) return `${mins}m ago`;
@@ -69,7 +83,7 @@ const NotificationList = () => {
     };
 
     return (
-        <div className="w-[380px] h-screen bg-[#0c1020] border-r border-white/[0.06] flex flex-col shrink-0">
+        <div className="w-full md:w-[380px] h-full bg-[#0c1020] border-r border-white/[0.06] flex flex-col shrink-0">
             <div className="px-5 pt-6 pb-4">
                 <div className="flex items-center justify-between mb-5">
                     <h2 className="text-xl font-bold text-white tracking-tight">Notifications</h2>
@@ -187,7 +201,7 @@ const NotificationList = () => {
                 )}
             </div>
 
-            <div className="px-4 py-4 border-t border-white/[0.06]">
+            <div className="px-4 py-4 border-t border-white/[0.06] hidden md:block">
                 <div className="flex items-center gap-3 px-2">
                     {user?.avatar ? (
                         <img

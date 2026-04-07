@@ -4,17 +4,23 @@ import jwt from "jsonwebtoken";
 
 export const protect = (req, res, next) => {
     const token = req.cookies?.token;
+
     if (!token) {
         return responseHelper.unauthorized(res, "Authentication required");
     }
+
     try {
-        const userId = jwt.verify(token, env.JWT_SECRET);
-        if (!userId) {
+        const decoded = jwt.verify(token, env.JWT_SECRET);
+
+        if (!decoded?.id) {
             return responseHelper.unauthorized(res, "Authentication required");
         }
-        req.userId = userId.id;
+
+        req.userId = decoded.id;
         next();
-    } catch (error) {
-        return responseHelper.error(res, "Internal server error", 500);
+    } catch {
+        return responseHelper.unauthorized(res, "Invalid or expired token");
     }
 };
+
+export const isAuth = protect;

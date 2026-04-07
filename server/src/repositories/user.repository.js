@@ -59,10 +59,14 @@ export const searchUsers = (query, currentUserId, page = 1, limit = 20) => {
 
 export const setOnlineStatus = (userId, isOnline) => {
     const update = { is_online: isOnline, last_seen: new Date() };
-    return User.findByIdAndUpdate(userId, update);
+    return User.findByIdAndUpdate(userId, update, { returnDocument: "after" });
 };
 
 export const getFriendsIds = async (userId) => {
     const user = await User.findById(userId).select("friends");
     return user?.friends?.map((f) => f.toString()) || [];
+};
+
+export const updateProfile = (userId, data) => {
+    return User.findByIdAndUpdate(userId, data, { returnDocument: "after" });
 };
