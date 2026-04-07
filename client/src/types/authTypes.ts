@@ -55,4 +55,6 @@ export type AuthStore = {
     signup: (data: Signup) => Promise<AuthResponse>;
     forgotPassword: (data: SendOtp) => Promise<AuthResponse>;
     resetPassword: (data: ResetPassword) => Promise<AuthResponse>;
+    updateProfile: (data: { username: string }) => Promise<AuthResponse>;
+    updateAvatar: (file: File) => Promise<AuthResponse>;
 }

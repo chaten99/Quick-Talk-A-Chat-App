@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthStore } from "../../store/authStore";
 import { signupSchema, type SignupFormData } from "../../schemas/authSchemas";
@@ -20,7 +20,7 @@ const SignupPage = () => {
     const {
         register,
         handleSubmit,
-        watch,
+        control,
         getValues,
         setError,
         clearErrors,
@@ -30,8 +30,8 @@ const SignupPage = () => {
         defaultValues: { username: "", email: "", phone: "", password: "" },
     });
 
-    const watchedEmail = watch("email");
-    const watchedPassword = watch("password");
+    const watchedEmail = useWatch({ control, name: "email" });
+    const watchedPassword = useWatch({ control, name: "password" });
 
     const handleSendOtp = async () => {
         const email = getValues("email");
@@ -81,7 +81,7 @@ const SignupPage = () => {
         }
     };
 
-    const isFormValid = emailVerified && watchedPassword.length >= 6;
+    const isFormValid = emailVerified && (watchedPassword?.length || 0) >= 6;
 
     const handleGoogleSignup = () => {
         window.location.href = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.GOOGLE}`;

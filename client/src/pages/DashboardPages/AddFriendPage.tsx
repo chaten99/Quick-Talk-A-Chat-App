@@ -5,7 +5,7 @@ import useDebounce from "../../hooks/useDebounce";
 import { toast } from "react-toastify";
 
 const AddFriendPage = () => {
-    const { searchResults, searching, searchUsers, loadMoreSearch, searchHasMore, sendRequest, cancelRequest, clearSearch, friends, pendingRequests, getPendingRequests } = useFriendStore();
+    const { searchResults, searching, searchUsers, loadMoreSearch, sendRequest, cancelRequest, clearSearch, friends, pendingRequests, getPendingRequests } = useFriendStore();
     const [query, setQuery] = useState("");
     const [sentRequests, setSentRequests] = useState<Record<string, string>>({});
     const debouncedQuery = useDebounce(query, 400);
@@ -124,76 +124,66 @@ const AddFriendPage = () => {
                             <p className="text-slate-600 text-xs">Try a different search term</p>
                         </div>
                     ) : (
-                        <div className="max-w-xl space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
                             {searchResults.map((result) => {
                                 const status = getRequestStatus(result._id);
                                 return (
                                     <div
                                         key={result._id}
-                                        className="flex items-center gap-4 px-4 py-4 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] hover:border-white/[0.1] transition-all duration-200"
+                                        className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] hover:border-indigo-500/30 transition-all duration-300 text-center relative group"
                                     >
                                         {result.avatar ? (
                                             <img
                                                 src={result.avatar}
                                                 alt={result.username}
-                                                className="w-12 h-12 rounded-full object-cover ring-2 ring-white/10"
+                                                className="w-20 h-20 rounded-full object-cover ring-4 ring-white/5 group-hover:ring-indigo-500/20 transition-all shadow-xl"
                                             />
                                         ) : (
-                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center ring-2 ring-white/10">
-                                                <span className="text-white font-bold text-base">
+                                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center ring-4 ring-white/5 group-hover:ring-indigo-500/20 transition-all shadow-xl">
+                                                <span className="text-white font-bold text-2xl">
                                                     {result.username.charAt(0).toUpperCase()}
                                                 </span>
                                             </div>
                                         )}
 
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white text-sm font-semibold truncate">{result.username}</p>
-                                            <p className="text-slate-500 text-xs truncate">{result.email}</p>
-                                            {result.phone && (
-                                                <p className="text-slate-600 text-xs truncate">{result.phone}</p>
-                                            )}
+                                        <div className="w-full">
+                                            <p className="text-white text-lg font-bold truncate mb-1">{result.username}</p>
+                                            <p className="text-slate-400 text-sm truncate mb-4">{result.email}</p>
                                         </div>
 
-                                        {status === "friends" ? (
-                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-semibold">
-                                                <UserCheck className="w-3.5 h-3.5" strokeWidth={2} />
-                                                Friends
-                                            </div>
-                                        ) : status === "sent" ? (
-                                            <button
-                                                onClick={() => handleCancel(result._id)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-400 text-xs font-semibold hover:bg-amber-500/25 transition-colors duration-200 cursor-pointer"
-                                            >
-                                                <Clock className="w-3.5 h-3.5" strokeWidth={2} />
-                                                Pending
-                                            </button>
-                                        ) : status === "received" ? (
-                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/15 text-indigo-400 text-xs font-semibold">
-                                                <Clock className="w-3.5 h-3.5" strokeWidth={2} />
-                                                Requested
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => handleSend(result._id)}
-                                                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-500/20 text-indigo-400 text-xs font-semibold hover:bg-indigo-500/30 transition-colors duration-200 cursor-pointer"
-                                            >
-                                                <UserPlus className="w-3.5 h-3.5" strokeWidth={2} />
-                                                Add
-                                            </button>
-                                        )}
+                                        <div className="w-full mt-auto">
+                                            {status === "friends" ? (
+                                                <div className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 text-sm font-semibold border border-emerald-500/20">
+                                                    <UserCheck className="w-4 h-4" strokeWidth={2} />
+                                                    Friends
+                                                </div>
+                                            ) : status === "sent" ? (
+                                                <button
+                                                    onClick={() => handleCancel(result._id)}
+                                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500/10 text-amber-400 text-sm font-semibold hover:bg-red-500/10 hover:text-red-400 border border-amber-500/20 hover:border-red-500/20 transition-all duration-200 cursor-pointer group/btn"
+                                                >
+                                                    <Clock className="w-4 h-4 group-hover/btn:hidden" strokeWidth={2} />
+                                                    <span className="group-hover/btn:hidden">Pending</span>
+                                                    <span className="hidden group-hover/btn:flex text-red-400">Cancel</span>
+                                                </button>
+                                            ) : status === "received" ? (
+                                                <div className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-500/15 text-indigo-400 text-sm font-semibold border border-indigo-500/20">
+                                                    <Clock className="w-4 h-4" strokeWidth={2} />
+                                                    Requested
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleSend(result._id)}
+                                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors duration-200 shadow-md shadow-indigo-500/20 cursor-pointer"
+                                                >
+                                                    <UserPlus className="w-4 h-4" strokeWidth={2} />
+                                                    Add Friend
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
-                            {searching && searchResults.length > 0 && (
-                                <div className="flex justify-center py-4">
-                                    <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-                                </div>
-                            )}
-                            {!searchHasMore && searchResults.length > 0 && (
-                                <div className="text-center py-4">
-                                    <p className="text-slate-600 text-xs">No more results</p>
-                                </div>
-                            )}
                         </div>
                     )}
                 </div>

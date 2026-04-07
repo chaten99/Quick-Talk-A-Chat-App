@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { FriendStore } from "../types/friendTypes";
 import { friendApi } from "../api/friendApi";
 import type { AxiosError } from "axios";
+import { useChatStore } from "./chatStore";
 
 const handleError = (err: unknown) => {
     const error = err as AxiosError<{ message: string }>;
@@ -51,6 +52,7 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
                 friendsPage: nextPage,
             }));
         } catch {
+            return;
         } finally {
             set({ loading: false });
         }
@@ -85,6 +87,7 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
                 searchPage: nextPage,
             }));
         } catch {
+            return;
         } finally {
             set({ searching: false });
         }
@@ -101,10 +104,22 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
 
     acceptRequest: async (requestId: string) => {
         try {
+            const pendingRequest = get().pendingRequests.find((request) => request._id === requestId);
             const res = await friendApi.acceptRequest(requestId);
             set((state) => ({
                 pendingRequests: state.pendingRequests.filter((r) => r._id !== requestId),
             }));
+
+            if (pendingRequest) {
+                get().addFriend({
+                    _id: pendingRequest.sender_id._id,
+                    username: pendingRequest.sender_id.username,
+                    email: pendingRequest.sender_id.email,
+                    avatar: pendingRequest.sender_id.avatar,
+                });
+                useChatStore.getState().updateConversationMessagingPermission(pendingRequest.sender_id._id, true);
+            }
+
             return { message: res.data.message, success: true };
         } catch (err) {
             return handleError(err);
@@ -138,6 +153,7 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
             set((state) => ({
                 friends: state.friends.filter((f) => f._id !== friendId),
             }));
+            useChatStore.getState().updateConversationMessagingPermission(friendId, false);
             return { message: res.data.message, success: true };
         } catch (err) {
             return handleError(err);
@@ -159,7 +175,10 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
     clearSearch: () => set({ searchResults: [], searchPage: 1, searchHasMore: false }),
 
     addFriend: (friend) => set((state) => ({
-        friends: [friend, ...state.friends],
+        friends: [
+            friend,
+            ...state.friends.filter((existingFriend) => existingFriend._id !== friend._id),
+        ],
     })),
 
     removeFriendFromList: (friendId) => set((state) => ({
@@ -174,9 +193,11 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
         pendingRequests: [request, ...state.pendingRequests],
     })),
 
-    updateFriendOnlineStatus: (friendId, isOnline) => set((state) => ({
+    updateFriendOnlineStatus: (friendId, isOnline, lastSeen) => set((state) => ({
         friends: state.friends.map((f) =>
-            f._id === friendId ? { ...f, is_online: isOnline } : f
+            f._id === friendId
+                ? { ...f, is_online: isOnline, last_seen: lastSeen || f.last_seen }
+                : f
         ),
     })),
 }));

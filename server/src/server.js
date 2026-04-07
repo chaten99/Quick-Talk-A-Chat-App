@@ -8,25 +8,27 @@ import { env } from "./config/env.js";
 import { initSocket } from "./sockets/socket.js";
 
 const numCPUs = os.cpus().length;
+const shouldUseCluster = env.NODE_ENV === "production";
+const workerCount = shouldUseCluster ? numCPUs : 1;
 
-if (cluster.isPrimary) {
+const start = async () => {
+  await connectDB();
+  await connectRedis();
+
+  const httpServer = http.createServer(app);
+  await initSocket(httpServer);
+
+  httpServer.listen(env.PORT, () => {
+    console.log(`Server running on ${env.PORT}`);
+  });
+};
+
+if (shouldUseCluster && cluster.isPrimary) {
   console.log(`Primary running`);
 
-  for (let i = 0; i < numCPUs; i++) {
+  for (let i = 0; i < workerCount; i++) {
     cluster.fork();
   }
 } else {
-  const start = async () => {
-    await connectDB();
-    await connectRedis();
-
-    const httpServer = http.createServer(app);
-    await initSocket(httpServer);
-
-    httpServer.listen(env.PORT, () => {
-      console.log(`Server running on ${env.PORT}`);
-    });
-  };
-
   start();
 }

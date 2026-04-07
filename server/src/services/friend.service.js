@@ -15,7 +15,13 @@ export const sendRequest = async (senderId, receiverId) => {
     }
 
     const sender = await userRepository.findById(senderId);
-    if (sender.friends.includes(receiverId)) {
+    if (!sender) {
+        throw new AppError("User not found", 404);
+    }
+
+    const isAlreadyFriend = sender.friends.some((friendId) => friendId.toString() === receiverId.toString());
+
+    if (isAlreadyFriend) {
         throw new AppError("Already friends", 400);
     }
 
@@ -167,7 +173,14 @@ export const getFriends = async (userId, page = 1, limit = 20) => {
 
 export const removeFriend = async (userId, friendId) => {
     const user = await userRepository.findById(userId);
-    if (!user.friends.includes(friendId)) {
+
+    if (!user) {
+        throw new AppError("User not found", 404);
+    }
+
+    const isFriend = user.friends.some((existingFriendId) => existingFriendId.toString() === friendId.toString());
+
+    if (!isFriend) {
         throw new AppError("Not friends with this user", 400);
     }
 

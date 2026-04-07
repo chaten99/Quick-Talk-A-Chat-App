@@ -38,6 +38,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
                 page: nextPage,
             }));
         } catch {
+            return;
         } finally {
             set({ loading: false });
         }
@@ -53,6 +54,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
                 unreadCount: Math.max(0, state.unreadCount - 1),
             }));
         } catch {
+            return;
         }
     },
 
@@ -64,6 +66,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
                 unreadCount: 0,
             }));
         } catch {
+            return;
         }
     },
 
@@ -90,6 +93,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
             await notificationApi.clearAll();
             set({ notifications: [], unreadCount: 0, page: 1, hasMore: false });
         } catch {
+            return;
         }
     },
 }));

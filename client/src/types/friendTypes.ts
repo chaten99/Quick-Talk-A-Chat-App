@@ -49,5 +49,5 @@ export type FriendStore = {
     removeFriendFromList: (friendId: string) => void;
     removeFromPending: (requestId: string) => void;
     addToPending: (request: FriendRequest) => void;
-    updateFriendOnlineStatus: (friendId: string, isOnline: boolean) => void;
+    updateFriendOnlineStatus: (friendId: string, isOnline: boolean, lastSeen?: string) => void;
 }

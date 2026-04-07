@@ -29,5 +29,9 @@ export const API_CONFIG = {
             MARK_ALL_READ: '/notifications/read-all',
             CLEAR_ALL: '/notifications/clear-all',
         },
+        PROFILE: {
+            UPDATE: '/profile',
+            AVATAR: '/profile/avatar',
+        },
     }
 }

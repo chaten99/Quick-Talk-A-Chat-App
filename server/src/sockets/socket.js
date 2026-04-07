@@ -40,20 +40,49 @@ export const initSocket = async (httpServer) => {
     io.on("connection", async (socket) => {
         socket.join(`user:${socket.userId}`);
 
-        await userRepository.setOnlineStatus(socket.userId, true);
+        const onlineUser = await userRepository.setOnlineStatus(socket.userId, true);
+
+        try {
+            const { markAsDeliveredWhenOnline } = await import("../services/message.service.js");
+            const deliveredUpdates = await markAsDeliveredWhenOnline(socket.userId);
+
+            deliveredUpdates.forEach((update) => {
+                io.to(`user:${update.senderId}`).emit("message:status-update", {
+                    conversationId: update.conversationId,
+                    status: "delivered",
+                    deliveredTo: socket.userId
+                });
+            });
+        } catch (error) {
+            console.error("Failed to mark messages delivered", error);
+        }
 
         const friendIds = await userRepository.getFriendsIds(socket.userId);
         friendIds.forEach((friendId) => {
-            io.to(`user:${friendId}`).emit("friend:online", { userId: socket.userId });
+            io.to(`user:${friendId}`).emit("friend:online", {
+                userId: socket.userId,
+                lastSeen: onlineUser?.last_seen?.toISOString()
+            });
+        });
+
+        socket.on("typing:start", ({ conversationId, toUserId }) => {
+            io.to(`user:${toUserId}`).emit("typing:start", { conversationId, userId: socket.userId });
+        });
+
+        socket.on("typing:stop", ({ conversationId, toUserId }) => {
+            io.to(`user:${toUserId}`).emit("typing:stop", { conversationId, userId: socket.userId });
         });
 
         socket.on("disconnect", async () => {
             socket.leave(`user:${socket.userId}`);
 
-            await userRepository.setOnlineStatus(socket.userId, false);
+            const offlineUser = await userRepository.setOnlineStatus(socket.userId, false);
 
             friendIds.forEach((friendId) => {
-                io.to(`user:${friendId}`).emit("friend:offline", { userId: socket.userId });
+                io.to(`user:${friendId}`).emit("friend:offline", {
+                    userId: socket.userId,
+                    lastSeen: offlineUser?.last_seen?.toISOString()
+                });
             });
         });
     });
