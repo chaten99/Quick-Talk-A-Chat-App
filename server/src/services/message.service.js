@@ -108,22 +108,54 @@ export const sendMessage = async (conversationId, senderId, content) => {
 export const markAsRead = async (conversationId, userId) => {
     await ensureConversationMember(conversationId, userId);
 
+    const conversation = await conversationRepository.findConversationById(conversationId);
+
+    if (!conversation) {
+        throw new AppError("Conversation not found", 404);
+    }
+
     await conversationRepository.resetUnreadCount(conversationId, userId);
-
-    await messageRepository.updateMessagesStatusInConversation(
-        conversationId, 
-        userId, 
-        ["sent", "delivered"], 
-        "read"
-    );
-
+    const seenUpdate = await messageRepository.addSeenByUserToConversation(conversationId, userId);
     const members = await conversationRepository.getConversationMembers(conversationId);
+
+    if (conversation.is_direct) {
+        await messageRepository.updateMessagesStatusInConversation(
+            conversationId, 
+            userId, 
+            ["sent", "delivered"], 
+            "read"
+        );
+
+        for (const member of members) {
+            if (member.user_id.toString() !== userId.toString()) {
+                emitToUser(member.user_id.toString(), "message:status-update", {
+                    conversationId,
+                    status: "read",
+                    readBy: userId
+                });
+            }
+        }
+
+        return;
+    }
+
+    if (seenUpdate.messageIds.length === 0) {
+        return;
+    }
+
+    const seenUser = await userRepository.findById(userId);
+
     for (const member of members) {
         if (member.user_id.toString() !== userId.toString()) {
-            emitToUser(member.user_id.toString(), "message:status-update", {
+            emitToUser(member.user_id.toString(), "message:seen-update", {
                 conversationId,
-                status: "read",
-                readBy: userId
+                messageIds: seenUpdate.messageIds,
+                seenBy: {
+                    _id: seenUser._id.toString(),
+                    username: seenUser.username,
+                    avatar: seenUser.avatar
+                },
+                seenAt: seenUpdate.seenAt.toISOString()
             });
         }
     }

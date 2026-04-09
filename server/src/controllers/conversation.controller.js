@@ -31,6 +31,41 @@ export const getOrCreateConversation = async (req, res, next) => {
     }
 };
 
+export const createGroupConversation = async (req, res, next) => {
+    try {
+        const { groupName, memberIds } = req.body;
+
+        if (!groupName) {
+            throw new AppError("Group name is required", 400);
+        }
+
+        let parsedMemberIds = memberIds;
+
+        if (typeof parsedMemberIds === "string") {
+            try {
+                parsedMemberIds = JSON.parse(parsedMemberIds);
+            } catch {
+                parsedMemberIds = parsedMemberIds.split(",").map((memberId) => memberId.trim()).filter(Boolean);
+            }
+        }
+
+        if (!Array.isArray(parsedMemberIds)) {
+            throw new AppError("Member IDs are required", 400);
+        }
+
+        const conversation = await conversationService.createGroupConversation(
+            req.userId,
+            groupName,
+            parsedMemberIds,
+            req.file?.buffer
+        );
+
+        return responseHelper.success(res, "Group created successfully", conversation, 201);
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const resetUnread = async (req, res, next) => {
     try {
         const { conversationId } = req.params;

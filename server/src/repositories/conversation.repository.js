@@ -32,6 +32,20 @@ const buildConversationPipeline = (matchStage, userId, options = {}) => {
         },
         {
             $lookup: {
+                from: "users",
+                localField: "last_message.sender_id",
+                foreignField: "_id",
+                as: "last_message_sender"
+            }
+        },
+        {
+            $unwind: {
+                path: "$last_message_sender",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
                 from: "conversationmembers",
                 let: { convo_id: "$conversation_id", current_user: toObjectId(userId) },
                 pipeline: [
@@ -67,6 +81,32 @@ const buildConversationPipeline = (matchStage, userId, options = {}) => {
                 ],
                 as: "other_members"
             }
+        },
+        {
+            $addFields: {
+                member_count: { $add: [{ $size: "$other_members" }, 1] },
+                last_message: {
+                    $cond: [
+                        { $ifNull: ["$last_message._id", false] },
+                        {
+                            _id: "$last_message._id",
+                            conversation_id: "$last_message.conversation_id",
+                            sender_id: {
+                                _id: "$last_message_sender._id",
+                                username: "$last_message_sender.username",
+                                avatar: "$last_message_sender.avatar"
+                            },
+                            content: "$last_message.content",
+                            message_type: "$last_message.message_type",
+                            status: "$last_message.status",
+                            seen_by: "$last_message.seen_by",
+                            createdAt: "$last_message.createdAt",
+                            updatedAt: "$last_message.updatedAt"
+                        },
+                        "$last_message"
+                    ]
+                }
+            }
         }
     ];
 
@@ -97,6 +137,8 @@ const buildConversationPipeline = (matchStage, userId, options = {}) => {
             unread_count: 1,
             last_message: 1,
             friend: { $arrayElemAt: ["$other_members.user", 0] },
+            members: "$other_members.user",
+            member_count: 1,
             updatedAt: "$conversation.updatedAt"
         }
     });
@@ -173,6 +215,43 @@ export const createDirectConversation = async (userId1, userId2) => {
                 conversation_id: conversation._id,
                 user_id: userId2,
             }
+        ]);
+
+        return conversation;
+    } catch (error) {
+        if (conversation?._id) {
+            await ConversationMember.deleteMany({ conversation_id: conversation._id });
+            await Conversation.findByIdAndDelete(conversation._id);
+        }
+
+        throw error;
+    }
+};
+
+export const createGroupConversation = async (creatorId, groupName, groupAvatar, memberIds) => {
+    let conversation = null;
+
+    try {
+        conversation = new Conversation({
+            is_group: true,
+            is_direct: false,
+            group_name: groupName,
+            group_avatar: groupAvatar,
+            created_by: creatorId,
+        });
+        await conversation.save();
+
+        await ConversationMember.insertMany([
+            {
+                conversation_id: conversation._id,
+                user_id: creatorId,
+                role: "admin",
+            },
+            ...memberIds.map((memberId) => ({
+                conversation_id: conversation._id,
+                user_id: memberId,
+                role: "member",
+            }))
         ]);
 
         return conversation;

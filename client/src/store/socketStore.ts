@@ -5,7 +5,7 @@ import { useFriendStore } from "./friendStore";
 import { useChatStore } from "./chatStore";
 import type { Notification } from "../types/notificationTypes";
 import type { FriendRequest, Friend } from "../types/friendTypes";
-import type { Conversation, Message, MessageStatus } from "../types/chatTypes";
+import type { ChatUser, Conversation, Message, MessageStatus } from "../types/chatTypes";
 import { toast } from "react-toastify";
 
 type SocketStore = {
@@ -69,6 +69,10 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
             useChatStore.getState().updateFriendPresence(data.userId, false, data.lastSeen);
         });
 
+        socket.on("conversation:new", (data: { conversation: Conversation }) => {
+            useChatStore.getState().upsertConversation(data.conversation);
+        });
+
         socket.on("message:new", (data: { message: Message; conversationId: string; conversation?: Conversation }) => {
             const { message, conversationId, conversation } = data;
             const chatStore = useChatStore.getState();
@@ -94,6 +98,15 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
                     chatStore.updateMessageStatus(conversationId, data.status);
                 });
             }
+        });
+
+        socket.on("message:seen-update", (data: { conversationId: string; messageIds: string[]; seenBy: ChatUser; seenAt: string }) => {
+            useChatStore.getState().applyMessageSeenUpdate(
+                data.conversationId,
+                data.messageIds,
+                data.seenBy,
+                data.seenAt
+            );
         });
 
         socket.on("typing:start", (data: { conversationId: string; userId: string }) => {

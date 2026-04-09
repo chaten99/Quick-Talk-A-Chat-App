@@ -4,6 +4,7 @@ import { createClient } from "redis";
 import { env } from "../config/env.js";
 import jwt from "jsonwebtoken";
 import * as userRepository from "../repositories/user.repository.js";
+import * as conversationRepository from "../repositories/conversation.repository.js";
 
 let io;
 
@@ -65,12 +66,36 @@ export const initSocket = async (httpServer) => {
             });
         });
 
-        socket.on("typing:start", ({ conversationId, toUserId }) => {
-            io.to(`user:${toUserId}`).emit("typing:start", { conversationId, userId: socket.userId });
+        const emitTypingState = async (event, payload = {}) => {
+            const { conversationId, toUserId } = payload;
+
+            if (!conversationId) {
+                return;
+            }
+
+            if (toUserId) {
+                io.to(`user:${toUserId}`).emit(event, { conversationId, userId: socket.userId });
+                return;
+            }
+
+            const members = await conversationRepository.getConversationMembers(conversationId);
+
+            members.forEach((member) => {
+                if (member.user_id.toString() !== socket.userId.toString()) {
+                    io.to(`user:${member.user_id.toString()}`).emit(event, {
+                        conversationId,
+                        userId: socket.userId
+                    });
+                }
+            });
+        };
+
+        socket.on("typing:start", (payload) => {
+            void emitTypingState("typing:start", payload);
         });
 
-        socket.on("typing:stop", ({ conversationId, toUserId }) => {
-            io.to(`user:${toUserId}`).emit("typing:stop", { conversationId, userId: socket.userId });
+        socket.on("typing:stop", (payload) => {
+            void emitTypingState("typing:stop", payload);
         });
 
         socket.on("disconnect", async () => {

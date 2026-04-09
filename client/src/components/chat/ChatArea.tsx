@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Check, CheckCheck, Loader2, ArrowLeft } from "lucide-react";
+import { Send, Check, CheckCheck, Loader2, ArrowLeft, Users } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useChatStore } from "../../store/chatStore";
 import { useSocketStore } from "../../store/socketStore";
-import type { MessageStatus } from "../../types/chatTypes";
+import type { ChatUser, Message, MessageStatus } from "../../types/chatTypes";
 
 const ChatArea = () => {
     const { user } = useAuthStore();
@@ -36,6 +36,7 @@ const ChatArea = () => {
     const page = activeConversationId ? messagesPage[activeConversationId] || 1 : 1;
     const activeTypers = activeConversationId ? typingUsers[activeConversationId] || [] : [];
     const canMessage = activeConvo?.can_message !== false;
+    const isGroupConversation = Boolean(activeConvo?.is_group);
 
     useEffect(() => {
         if (!isLoading && page === 1 && messagesEndRef.current) {
@@ -70,13 +71,12 @@ const ChatArea = () => {
             typingTimeoutRef.current = null;
         }
 
-        if (activeConversationId && activeConvo?.friend?._id) {
+        if (activeConversationId) {
             socket?.emit("typing:stop", {
-                conversationId: activeConversationId,
-                toUserId: activeConvo.friend._id
+                conversationId: activeConversationId
             });
         }
-    }, [activeConversationId, activeConvo?.friend?._id, canMessage, socket]);
+    }, [activeConversationId, canMessage, socket]);
 
     const handleScroll = () => {
         if (!messagesContainerRef.current || isLoading || !hasMore || !activeConversationId) return;
@@ -85,6 +85,75 @@ const ChatArea = () => {
             previousScrollHeightRef.current = messagesContainerRef.current.scrollHeight;
             void fetchMessages(activeConversationId, page + 1);
         }
+    };
+
+    const getMessageSenderId = (message: Message) => {
+        return typeof message.sender_id === "object" && message.sender_id !== null
+            ? message.sender_id._id
+            : message.sender_id;
+    };
+
+    const getMessageSenderName = (message: Message) => {
+        if (typeof message.sender_id !== "object" || message.sender_id === null) {
+            return "";
+        }
+
+        return message.sender_id.username;
+    };
+
+    const getSeenUser = (seenUser: ChatUser | string) => {
+        return typeof seenUser === "object" && seenUser !== null
+            ? seenUser
+            : null;
+    };
+
+    const getSeenSummary = (message: Message) => {
+        const seenUsers = (message.seen_by || [])
+            .map((entry) => getSeenUser(entry.user_id))
+            .filter((entry): entry is ChatUser => Boolean(entry))
+            .filter((entry) => entry._id !== user?.id);
+
+        if (seenUsers.length === 0) {
+            return "";
+        }
+
+        if (seenUsers.length === 1) {
+            return `Seen by ${seenUsers[0].username}`;
+        }
+
+        if (seenUsers.length === 2) {
+            return `Seen by ${seenUsers[0].username}, ${seenUsers[1].username}`;
+        }
+
+        return `Seen by ${seenUsers[0].username}, ${seenUsers[1].username} +${seenUsers.length - 2}`;
+    };
+
+    const getTypingLabel = () => {
+        if (activeTypers.length === 0) {
+            return "";
+        }
+
+        if (!isGroupConversation) {
+            return `${activeConvo?.friend?.username || "Someone"} is typing...`;
+        }
+
+        const typingNames = activeTypers
+            .map((userId) => activeConvo?.members?.find((member) => member._id === userId)?.username)
+            .filter((name): name is string => Boolean(name));
+
+        if (typingNames.length === 0) {
+            return "Typing...";
+        }
+
+        if (typingNames.length === 1) {
+            return `${typingNames[0]} is typing...`;
+        }
+
+        if (typingNames.length === 2) {
+            return `${typingNames[0]} and ${typingNames[1]} are typing...`;
+        }
+
+        return `${typingNames[0]} and ${typingNames.length - 1} others are typing...`;
     };
 
     const handleSend = async (e: React.FormEvent) => {
@@ -97,8 +166,7 @@ const ChatArea = () => {
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
             socket?.emit("typing:stop", {
-                conversationId: activeConversationId,
-                toUserId: activeConvo?.friend?._id
+                conversationId: activeConversationId
             });
             typingTimeoutRef.current = null;
         }
@@ -111,15 +179,16 @@ const ChatArea = () => {
     };
 
     const handleBack = () => {
+        setInput("");
+
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = null;
         }
 
-        if (activeConversationId && activeConvo?.friend?._id) {
+        if (activeConversationId) {
             socket?.emit("typing:stop", {
-                conversationId: activeConversationId,
-                toUserId: activeConvo.friend._id
+                conversationId: activeConversationId
             });
         }
 
@@ -132,19 +201,17 @@ const ChatArea = () => {
         }
 
         setInput(e.target.value);
-        if (!activeConversationId || !activeConvo?.friend?._id) return;
+        if (!activeConversationId) return;
 
         if (e.target.value.trim() === "") {
             socket?.emit("typing:stop", {
-                conversationId: activeConversationId,
-                toUserId: activeConvo.friend._id
+                conversationId: activeConversationId
             });
             return;
         }
 
         socket?.emit("typing:start", {
-            conversationId: activeConversationId,
-            toUserId: activeConvo.friend._id
+            conversationId: activeConversationId
         });
 
         if (typingTimeoutRef.current) {
@@ -153,8 +220,7 @@ const ChatArea = () => {
 
         typingTimeoutRef.current = setTimeout(() => {
             socket?.emit("typing:stop", {
-                conversationId: activeConversationId,
-                toUserId: activeConvo.friend?._id
+                conversationId: activeConversationId
             });
         }, 2000);
     };
@@ -217,25 +283,36 @@ const ChatArea = () => {
                 lastDateString = currentDateString;
             }
 
-            const senderId = typeof message.sender_id === "object" ? message.sender_id._id : message.sender_id;
+            const senderId = getMessageSenderId(message);
             const isMine = senderId === user?.id;
+            const seenSummary = isMine && isGroupConversation ? getSeenSummary(message) : "";
 
             items.push(
                 <div key={message._id} className={`flex ${isMine ? "justify-end" : "justify-start"} mb-2`}>
                     <div
-                        className={`max-w-[75%] px-4 py-2 rounded-2xl relative group ${
+                        className={`max-w-[78%] px-4 py-2 rounded-2xl relative ${
                             isMine
                                 ? "bg-indigo-600 text-white rounded-br-sm"
                                 : "bg-[#1c2235] border border-white/[0.05] text-slate-100 rounded-bl-sm"
                         }`}
                     >
+                        {isGroupConversation && !isMine && (
+                            <p className="text-[11px] font-semibold text-cyan-300/80 mb-1">
+                                {getMessageSenderName(message)}
+                            </p>
+                        )}
                         <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">{message.content}</p>
                         <div className={`flex items-center gap-1.5 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
                             <span className={`text-[10px] ${isMine ? "text-indigo-200/80" : "text-slate-500"}`}>
                                 {formatMessageTime(message.createdAt)}
                             </span>
-                            {isMine && renderMessageStatus(message.status)}
+                            {!isGroupConversation && isMine && renderMessageStatus(message.status)}
                         </div>
+                        {seenSummary && (
+                            <p className="mt-1 text-[10px] text-indigo-100/70 text-right">
+                                {seenSummary}
+                            </p>
+                        )}
                     </div>
                 </div>
             );
@@ -249,6 +326,18 @@ const ChatArea = () => {
             <div className="flex-1 hidden md:flex items-center justify-center bg-[#0a0e1a]"></div>
         );
     }
+
+    const typingLabel = getTypingLabel();
+    const conversationTitle = isGroupConversation
+        ? activeConvo.group_name || "Group Chat"
+        : activeConvo.friend?.username || "Conversation";
+    const conversationSubtitle = isGroupConversation
+        ? `${activeConvo.member_count || ((activeConvo.members?.length || 0) + 1)} members`
+        : activeConvo.friend?.is_online
+            ? "Online"
+            : activeConvo.friend?.last_seen
+                ? formatLastSeen(activeConvo.friend.last_seen)
+                : "Offline";
 
     return (
         <div className="flex-1 flex flex-col bg-[#0a0e1a] h-full overflow-hidden relative">
@@ -264,7 +353,25 @@ const ChatArea = () => {
                         <ArrowLeft className="w-5 h-5" strokeWidth={2.2} />
                     </button>
                     <div className="relative">
-                        {activeConvo.friend?.avatar ? (
+                        {isGroupConversation ? (
+                            activeConvo.group_avatar ? (
+                                <img
+                                    src={activeConvo.group_avatar}
+                                    alt={activeConvo.group_name}
+                                    className="w-11 h-11 rounded-full object-cover ring-2 ring-white/10"
+                                />
+                            ) : (
+                                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-cyan-500/80 to-indigo-600/80 flex items-center justify-center ring-2 ring-white/10">
+                                    {activeConvo.group_name ? (
+                                        <span className="text-white font-semibold">
+                                            {activeConvo.group_name.charAt(0).toUpperCase()}
+                                        </span>
+                                    ) : (
+                                        <Users className="w-5 h-5 text-white" strokeWidth={2.2} />
+                                    )}
+                                </div>
+                            )
+                        ) : activeConvo.friend?.avatar ? (
                             <img
                                 src={activeConvo.friend.avatar}
                                 alt={activeConvo.friend.username}
@@ -277,18 +384,18 @@ const ChatArea = () => {
                                 </span>
                             </div>
                         )}
-                        {activeConvo.friend?.is_online && (
+                        {!isGroupConversation && activeConvo.friend?.is_online && (
                             <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#0c1020] shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                         )}
                     </div>
                     <div>
-                        <h3 className="text-[16px] font-bold text-white">{activeConvo.friend?.username}</h3>
+                        <h3 className="text-[16px] font-bold text-white">{conversationTitle}</h3>
                         <p className="text-[12px] text-slate-400 font-medium">
-                            {activeConvo.friend?.is_online
-                                ? <span className="text-emerald-400">Online</span>
-                                : activeConvo.friend?.last_seen
-                                    ? formatLastSeen(activeConvo.friend.last_seen)
-                                    : "Offline"}
+                            {!isGroupConversation && activeConvo.friend?.is_online ? (
+                                <span className="text-emerald-400">Online</span>
+                            ) : (
+                                conversationSubtitle
+                            )}
                         </p>
                     </div>
                 </div>
@@ -315,10 +422,15 @@ const ChatArea = () => {
 
                 {activeTypers.length > 0 && (
                     <div className="flex justify-start mb-2">
-                        <div className="bg-[#1c2235] border border-white/[0.05] rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+                        <div className="bg-[#1c2235] border border-white/[0.05] rounded-2xl rounded-bl-sm px-4 py-3">
+                            <p className="text-[11px] text-slate-400 mb-1">
+                                {typingLabel}
+                            </p>
+                            <div className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -336,7 +448,7 @@ const ChatArea = () => {
                                 type="text"
                                 value={input}
                                 onChange={handleTyping}
-                                placeholder="Type a message..."
+                                placeholder={isGroupConversation ? "Message the group..." : "Type a message..."}
                                 className="flex-1 bg-transparent text-white placeholder:text-slate-500 text-[15px] p-2 ml-2 outline-none"
                             />
                             <button
