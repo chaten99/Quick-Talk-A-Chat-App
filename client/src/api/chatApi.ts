@@ -1,6 +1,12 @@
 import apiClient from "./apiClient";
 import type { Conversation, Message, PaginatedConversations, PaginatedMessages } from "../types/chatTypes";
 
+type CreateGroupConversationPayload = {
+    groupName: string;
+    memberIds: string[];
+    avatar?: File | null;
+};
+
 export const chatApi = {
     getConversations: async (page = 1, limit = 20) => {
         const response = await apiClient.get<{ success: boolean; data: PaginatedConversations }>(
@@ -14,6 +20,26 @@ export const chatApi = {
             "/conversations",
             { friendId }
         );
+        return response.data.data;
+    },
+
+    createGroupConversation: async ({ groupName, memberIds, avatar }: CreateGroupConversationPayload) => {
+        const formData = new FormData();
+        formData.append("groupName", groupName);
+        formData.append("memberIds", JSON.stringify(memberIds));
+
+        if (avatar) {
+            formData.append("avatar", avatar);
+        }
+
+        const response = await apiClient.post<{ success: boolean; data: Conversation }>(
+            "/conversations/group",
+            formData,
+            {
+                headers: { "Content-Type": "multipart/form-data" }
+            }
+        );
+
         return response.data.data;
     },
 

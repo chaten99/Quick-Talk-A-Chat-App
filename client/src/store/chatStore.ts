@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { chatApi } from "../api/chatApi";
 import { useAuthStore } from "./authStore";
-import type { Conversation, Message, MessageStatus } from "../types/chatTypes";
+import type { ChatUser, Conversation, Message, MessageStatus } from "../types/chatTypes";
 import type { AxiosError } from "axios";
 import { toast } from "react-toastify";
 
@@ -27,6 +27,7 @@ interface ChatState {
     updateConversationLastMessage: (conversationId: string, message: Message, incrementUnread?: boolean) => void;
     updateFriendPresence: (userId: string, isOnline: boolean, lastSeen?: string) => void;
     updateConversationMessagingPermission: (friendId: string, canMessage: boolean) => void;
+    applyMessageSeenUpdate: (conversationId: string, messageIds: string[], seenBy: ChatUser, seenAt: string) => void;
     setTyping: (conversationId: string, userId: string, isTyping: boolean) => void;
     markConversationAsRead: (conversationId: string) => Promise<void>;
 }
@@ -39,6 +40,12 @@ const getMessageSenderId = (message: Message) => {
     return typeof message.sender_id === "object" && message.sender_id !== null
         ? message.sender_id._id
         : message.sender_id;
+};
+
+const getSeenUserId = (user: ChatUser | string) => {
+    return typeof user === "object" && user !== null
+        ? user._id
+        : user;
 };
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -233,6 +240,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         set((state) => {
+            const targetConversation = state.conversations.find((conversation) => conversation._id === conversationId);
+
+            if (targetConversation?.is_group) {
+                return state;
+            }
+
             const currentMessages = state.messages[conversationId] || [];
 
             return {
@@ -264,6 +277,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         return { ...message, status };
                     })
                 }
+            };
+        });
+    },
+
+    applyMessageSeenUpdate: (conversationId: string, messageIds: string[], seenBy: ChatUser, seenAt: string) => {
+        const targetMessageIds = new Set(messageIds);
+
+        set((state) => {
+            const currentMessages = state.messages[conversationId];
+
+            if (!currentMessages || currentMessages.length === 0) {
+                return state;
+            }
+
+            const applySeenBy = (message: Message) => {
+                if (!targetMessageIds.has(message._id)) {
+                    return message;
+                }
+
+                const existingSeenBy = message.seen_by || [];
+
+                if (existingSeenBy.some((entry) => getSeenUserId(entry.user_id) === seenBy._id)) {
+                    return message;
+                }
+
+                return {
+                    ...message,
+                    seen_by: [
+                        ...existingSeenBy,
+                        {
+                            user_id: seenBy,
+                            seen_at: seenAt
+                        }
+                    ]
+                };
+            };
+
+            return {
+                messages: {
+                    ...state.messages,
+                    [conversationId]: currentMessages.map(applySeenBy)
+                },
+                conversations: state.conversations.map((conversation) => {
+                    if (
+                        conversation._id !== conversationId ||
+                        !conversation.last_message ||
+                        !targetMessageIds.has(conversation.last_message._id)
+                    ) {
+                        return conversation;
+                    }
+
+                    return {
+                        ...conversation,
+                        last_message: applySeenBy(conversation.last_message)
+                    };
+                })
             };
         });
     },

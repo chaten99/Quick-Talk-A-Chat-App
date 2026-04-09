@@ -24,6 +24,17 @@ const schema = new mongoose.Schema({
         enum: ["sent", "delivered", "read"],
         default: "sent",
     },
+    seen_by: [{
+        user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        seen_at: {
+            type: Date,
+            default: Date.now,
+        }
+    }],
 }, {timestamps: true});
 
 export default mongoose.model("Message", schema);

@@ -9,6 +9,11 @@ export interface ChatUser {
     last_seen?: string;
 }
 
+export interface MessageSeen {
+    user_id: ChatUser | string;
+    seen_at: string;
+}
+
 export interface Message {
     _id: string;
     conversation_id: string;
@@ -16,6 +21,7 @@ export interface Message {
     content: string;
     message_type: "text" | "file";
     status: MessageStatus;
+    seen_by?: MessageSeen[];
     createdAt: string;
     updatedAt: string;
 }
@@ -30,6 +36,8 @@ export interface Conversation {
     can_message?: boolean;
     last_message?: Message;
     friend?: ChatUser;
+    members?: ChatUser[];
+    member_count?: number;
     updatedAt: string;
 }
 
