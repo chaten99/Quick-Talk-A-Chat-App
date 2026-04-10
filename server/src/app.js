@@ -4,8 +4,12 @@ import routes from "./routes/index.js";
 import { env } from "./config/env.js";
 import cookieParser from "cookie-parser";
 import AppError from "./utils/AppError.js";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpecs } from "./config/swagger.js";
 
 const app = express();
+
+app.set("trust proxy", 1);
 
 app.use(cors({
     origin: env.FRONTEND_URL,
@@ -15,6 +19,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 app.use("/api", routes);
 
 app.use((req, res, next) => {

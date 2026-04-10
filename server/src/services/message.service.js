@@ -1,6 +1,7 @@
 import * as messageRepository from "../repositories/message.repository.js";
 import * as conversationRepository from "../repositories/conversation.repository.js";
 import * as userRepository from "../repositories/user.repository.js";
+import { hydrateConversationPresence } from "./conversation.service.js";
 import { emitToUser } from "../sockets/socket.js";
 import AppError from "../utils/AppError.js";
 
@@ -60,17 +61,15 @@ export const sendMessage = async (conversationId, senderId, content) => {
     });
 
     const recipientMembers = members.filter((member) => member.user_id.toString() !== senderId.toString());
-
-    const onlineRecipients = await Promise.all(
-        recipientMembers.map(async (member) => {
-            const user = await userRepository.findById(member.user_id);
-
-            return {
-                member,
-                isOnline: Boolean(user?.is_online)
-            };
-        })
+    const recipientPresenceMap = await userRepository.getUsersPresence(
+        recipientMembers.map((member) => member.user_id.toString())
     );
+    const onlineRecipients = recipientMembers.map((member) => ({
+        member,
+        isOnline: Boolean(
+            recipientPresenceMap.get(member.user_id.toString())?.is_online
+        )
+    }));
 
     if (onlineRecipients.some((recipient) => recipient.isOnline)) {
         message = await messageRepository.updateMessageStatus(message._id, "delivered");
@@ -83,11 +82,12 @@ export const sendMessage = async (conversationId, senderId, content) => {
             await conversationRepository.incrementUnreadCount(conversationId, member.user_id);
 
             const memberConversation = await conversationRepository.getConversationByIdAndUserId(conversationId, member.user_id);
+            const hydratedMemberConversation = await hydrateConversationPresence(memberConversation);
 
             emitToUser(member.user_id.toString(), "message:new", {
                 message,
                 conversationId,
-                conversation: memberConversation ? { ...memberConversation, can_message: true } : memberConversation
+                conversation: hydratedMemberConversation ? { ...hydratedMemberConversation, can_message: true } : hydratedMemberConversation
             });
         }
     }
@@ -143,7 +143,7 @@ export const markAsRead = async (conversationId, userId) => {
         return;
     }
 
-    const seenUser = await userRepository.findById(userId);
+    const seenUser = await userRepository.findProfileById(userId);
 
     for (const member of members) {
         if (member.user_id.toString() !== userId.toString()) {

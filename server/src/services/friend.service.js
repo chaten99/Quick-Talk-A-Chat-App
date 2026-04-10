@@ -9,12 +9,12 @@ export const sendRequest = async (senderId, receiverId) => {
         throw new AppError("Cannot send friend request to yourself", 400);
     }
 
-    const receiver = await userRepository.findById(receiverId);
+    const receiver = await userRepository.findProfileById(receiverId);
     if (!receiver) {
         throw new AppError("User not found", 404);
     }
 
-    const sender = await userRepository.findById(senderId);
+    const sender = await userRepository.findProfileById(senderId);
     if (!sender) {
         throw new AppError("User not found", 404);
     }
@@ -74,7 +74,10 @@ export const acceptRequest = async (requestId, userId) => {
     await friendRepository.updateRequestStatus(requestId, "accepted");
     await friendRepository.addFriend(request.sender_id._id, request.receiver_id._id);
 
-    const receiver = await userRepository.findById(userId);
+    await userRepository.clearProfileCache(request.sender_id._id.toString());
+    await userRepository.clearProfileCache(request.receiver_id._id.toString());
+
+    const receiver = await userRepository.findProfileById(userId);
 
     const notification = await notificationRepository.create({
         user_id: request.sender_id._id,
@@ -117,7 +120,7 @@ export const rejectRequest = async (requestId, userId) => {
 
     await friendRepository.updateRequestStatus(requestId, "rejected");
 
-    const receiver = await userRepository.findById(userId);
+    const receiver = await userRepository.findProfileById(userId);
 
     const notification = await notificationRepository.create({
         user_id: request.sender_id._id,
@@ -162,7 +165,7 @@ export const cancelRequest = async (requestId, userId) => {
 export const getFriends = async (userId, page = 1, limit = 20) => {
     const user = await friendRepository.getFriendsByUserId(userId, page, limit);
     const total = await friendRepository.getFriendsCount(userId);
-    const friends = user?.friends || [];
+    const friends = await userRepository.hydrateUsersPresence(user?.friends || []);
     return {
         friends,
         total,
@@ -172,7 +175,7 @@ export const getFriends = async (userId, page = 1, limit = 20) => {
 };
 
 export const removeFriend = async (userId, friendId) => {
-    const user = await userRepository.findById(userId);
+    const user = await userRepository.findProfileById(userId);
 
     if (!user) {
         throw new AppError("User not found", 404);
@@ -185,6 +188,8 @@ export const removeFriend = async (userId, friendId) => {
     }
 
     await friendRepository.removeFriend(userId, friendId);
+    await userRepository.clearProfileCache(userId);
+    await userRepository.clearProfileCache(friendId);
 
     emitToUser(friendId, "friend:removed", { userId });
 

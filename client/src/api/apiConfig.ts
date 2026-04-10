@@ -33,5 +33,18 @@ export const API_CONFIG = {
             UPDATE: '/profile',
             AVATAR: '/profile/avatar',
         },
+        CONVERSATIONS: {
+            LIST: '/conversations',
+            CREATE: '/conversations',
+            CREATE_GROUP: '/conversations/group',
+            RESET_UNREAD: (id: string) => `/conversations/${id}/read`,
+            ADD_MEMBERS: (id: string) => `/conversations/${id}/members`,
+            REMOVE_MEMBER: (conversationId: string, userId: string) => `/conversations/${conversationId}/members/${userId}`,
+        },
+        MESSAGES: {
+            LIST: (conversationId: string) => `/messages/${conversationId}`,
+            SEND: (conversationId: string) => `/messages/${conversationId}`,
+            MARK_READ: (conversationId: string) => `/messages/${conversationId}/read`,
+        }
     }
 }

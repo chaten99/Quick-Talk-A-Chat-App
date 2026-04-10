@@ -6,6 +6,8 @@ import AppError from "../utils/AppError.js";
 import { env } from "../config/env.js";
 import bcrypt from "bcrypt";
 
+const trimUrl = (url) => url.replace(/\/+$/, "");
+
 export const signup = async (userData) => {
     const existingUser = await userRepository.findByEmail(userData.email);
 
@@ -123,17 +125,31 @@ export const resetPassword = async ({ email, otp, newPassword }) => {
     await redisClient.del(`otp:forgot:${email}`);
 };
 
-const getGoogleRedirectUri = () => {
+const getBackendBaseUrl = (requestBaseUrl) => {
+    if (env.BACKEND_URL) {
+        return trimUrl(env.BACKEND_URL);
+    }
+
+    if (requestBaseUrl) {
+        return trimUrl(requestBaseUrl);
+    }
+
     const baseUrl = env.NODE_ENV === "production"
-        ? env.FRONTEND_URL.replace(/\/+$/, "")
+        ? env.FRONTEND_URL
         : `http://localhost:${env.PORT}`;
+
+    return trimUrl(baseUrl);
+};
+
+const getGoogleRedirectUri = (requestBaseUrl) => {
+    const baseUrl = getBackendBaseUrl(requestBaseUrl);
     return `${baseUrl}/api/auth/google/callback`;
 };
 
-export const getGoogleAuthUrl = () => {
+export const getGoogleAuthUrl = (requestBaseUrl) => {
     const params = new URLSearchParams({
         client_id: env.GOOGLE_CLIENT_ID,
-        redirect_uri: getGoogleRedirectUri(),
+        redirect_uri: getGoogleRedirectUri(requestBaseUrl),
         response_type: "code",
         scope: "openid email profile",
         access_type: "offline",
@@ -142,8 +158,8 @@ export const getGoogleAuthUrl = () => {
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 };
 
-export const handleGoogleCallback = async (code) => {
-    const redirectUri = getGoogleRedirectUri();
+export const handleGoogleCallback = async (code, requestBaseUrl) => {
+    const redirectUri = getGoogleRedirectUri(requestBaseUrl);
 
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -184,7 +200,7 @@ export const handleGoogleCallback = async (code) => {
 };
 
 export const getMe = async (userId) => {
-    const user = await userRepository.findById(userId);
+    const user = await userRepository.findProfileById(userId);
     if (!user) {
         throw new AppError("User not found", 404);
     }

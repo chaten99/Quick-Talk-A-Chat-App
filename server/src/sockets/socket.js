@@ -41,7 +41,10 @@ export const initSocket = async (httpServer) => {
     io.on("connection", async (socket) => {
         socket.join(`user:${socket.userId}`);
 
-        const onlineUser = await userRepository.setOnlineStatus(socket.userId, true);
+        const onlineUser = await userRepository.markPresenceOnline(socket.userId);
+        const presenceInterval = setInterval(() => {
+            void userRepository.refreshPresenceOnline(socket.userId);
+        }, 30000);
 
         try {
             const { markAsDeliveredWhenOnline } = await import("../services/message.service.js");
@@ -62,7 +65,7 @@ export const initSocket = async (httpServer) => {
         friendIds.forEach((friendId) => {
             io.to(`user:${friendId}`).emit("friend:online", {
                 userId: socket.userId,
-                lastSeen: onlineUser?.last_seen?.toISOString()
+                lastSeen: onlineUser?.last_seen
             });
         });
 
@@ -99,14 +102,21 @@ export const initSocket = async (httpServer) => {
         });
 
         socket.on("disconnect", async () => {
+            clearInterval(presenceInterval);
             socket.leave(`user:${socket.userId}`);
 
-            const offlineUser = await userRepository.setOnlineStatus(socket.userId, false);
+            const activeSockets = await io.in(`user:${socket.userId}`).fetchSockets();
+
+            if (activeSockets.length > 0) {
+                return;
+            }
+
+            const offlineUser = await userRepository.markPresenceOffline(socket.userId);
 
             friendIds.forEach((friendId) => {
                 io.to(`user:${friendId}`).emit("friend:offline", {
                     userId: socket.userId,
-                    lastSeen: offlineUser?.last_seen?.toISOString()
+                    lastSeen: offlineUser?.last_seen
                 });
             });
         });

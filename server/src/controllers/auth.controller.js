@@ -10,6 +10,23 @@ const cookieOptions = {
     maxAge: 7 * 24 * 60 * 60 * 1000
 };
 
+const getRequestBaseUrl = (req) => {
+    const forwardedProto = req.headers["x-forwarded-proto"];
+    const forwardedHost = req.headers["x-forwarded-host"];
+    const protocol = typeof forwardedProto === "string"
+        ? forwardedProto.split(",")[0].trim()
+        : req.protocol;
+    const host = typeof forwardedHost === "string"
+        ? forwardedHost.split(",")[0].trim()
+        : req.get("host");
+
+    if (!host) {
+        return env.BACKEND_URL || `http://localhost:${env.PORT}`;
+    }
+
+    return `${protocol}://${host}`;
+};
+
 const buildAuthUser = (user) => ({
     id: user._id,
     email: user.email,
@@ -91,7 +108,7 @@ export const resetPassword = async (req, res, next) => {
 };
 
 export const googleAuth = (req, res) => {
-    const url = authService.getGoogleAuthUrl();
+    const url = authService.getGoogleAuthUrl(getRequestBaseUrl(req));
     res.redirect(url);
 };
 
@@ -103,7 +120,7 @@ export const googleCallback = async (req, res, next) => {
             return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?success=false&message=No+authorization+code`);
         }
 
-        const user = await authService.handleGoogleCallback(code);
+        const user = await authService.handleGoogleCallback(code, getRequestBaseUrl(req));
         const token = generateToken({ id: user._id });
 
         res.cookie("token", token, cookieOptions);

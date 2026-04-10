@@ -30,6 +30,8 @@ interface ChatState {
     applyMessageSeenUpdate: (conversationId: string, messageIds: string[], seenBy: ChatUser, seenAt: string) => void;
     setTyping: (conversationId: string, userId: string, isTyping: boolean) => void;
     markConversationAsRead: (conversationId: string) => Promise<void>;
+    addGroupMembers: (conversationId: string, memberIds: string[]) => Promise<void>;
+    removeGroupMember: (conversationId: string, userId: string) => Promise<void>;
 }
 
 const sortConversations = (conversations: Conversation[]) => {
@@ -434,5 +436,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             await chatApi.markAsRead(conversationId);
         }
+    },
+
+    addGroupMembers: async (conversationId: string, memberIds: string[]) => {
+        try {
+            const updatedConversation = await chatApi.addGroupMembers(conversationId, memberIds);
+            get().upsertConversation(updatedConversation);
+            toast.success("Members added successfully");
+        } catch (error) {
+            const apiError = error as AxiosError<{ message: string }>;
+            toast.error(apiError.response?.data?.message || "Failed to add members");
+            throw error;
+        }
+    },
+
+    removeGroupMember: async (conversationId: string, userId: string) => {
+        try {
+            const updatedConversation = await chatApi.removeGroupMember(conversationId, userId);
+            get().upsertConversation(updatedConversation);
+            toast.success("Member removed successfully");
+        } catch (error) {
+            const apiError = error as AxiosError<{ message: string }>;
+            toast.error(apiError.response?.data?.message || "Failed to remove member");
+            throw error;
+        }
     }
 }));
+
