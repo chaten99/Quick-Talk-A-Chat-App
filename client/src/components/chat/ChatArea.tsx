@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Check, CheckCheck, Loader2, ArrowLeft, Users } from "lucide-react";
+import { Send, Check, CheckCheck, Loader2, ArrowLeft, Users, Info } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useChatStore } from "../../store/chatStore";
 import { useSocketStore } from "../../store/socketStore";
 import type { ChatUser, Message, MessageStatus } from "../../types/chatTypes";
+import ConversationInfoDialog from "./ConversationInfoDialog";
 
 const ChatArea = () => {
     const { user } = useAuthStore();
@@ -24,6 +25,8 @@ const ChatArea = () => {
     } = useChatStore();
 
     const [input, setInput] = useState("");
+    const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,6 +183,7 @@ const ChatArea = () => {
 
     const handleBack = () => {
         setInput("");
+        setIsInfoDialogOpen(false);
 
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
@@ -399,6 +403,16 @@ const ChatArea = () => {
                         </p>
                     </div>
                 </div>
+
+                <div className="flex items-center">
+                    <button
+                        type="button"
+                        onClick={() => setIsInfoDialogOpen(true)}
+                        className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/[0.07] transition-all duration-200 cursor-pointer shrink-0"
+                    >
+                        <Info className="w-5 h-5" strokeWidth={2.2} />
+                    </button>
+                </div>
             </div>
 
             <div
@@ -477,6 +491,13 @@ const ChatArea = () => {
                     </div>
                 )}
             </div>
+
+            <ConversationInfoDialog
+                open={isInfoDialogOpen}
+                conversation={activeConvo}
+                currentUser={user}
+                onClose={() => setIsInfoDialogOpen(false)}
+            />
         </div>
     );
 };

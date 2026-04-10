@@ -312,3 +312,11 @@ export const incrementUnreadCount = async (conversationId, memberUserId) => {
 export const getConversationMembers = async (conversationId) => {
     return ConversationMember.find({ conversation_id: conversationId });
 };
+
+export const addMembersToGroup = async (conversationId, members) => {
+    return ConversationMember.insertMany(members);
+};
+
+export const removeMemberFromGroup = async (conversationId, userId) => {
+    return ConversationMember.deleteOne({ conversation_id: conversationId, user_id: userId });
+};

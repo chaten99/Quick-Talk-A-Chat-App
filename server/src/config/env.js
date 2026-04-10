@@ -9,6 +9,7 @@ const envSchema = z.object({
   REDIS_URL: z.string(),
   JWT_SECRET: z.string(),
   FRONTEND_URL: z.string(),
+  BACKEND_URL: z.string().optional(),
   NODE_ENV: z.enum(["development", "production"]).default("development"),
   EMAIL_USER: z.string(),
   EMAIL_PASS: z.string(),

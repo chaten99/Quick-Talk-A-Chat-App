@@ -3,7 +3,7 @@ import cloudinary from "../config/cloudinary.js";
 import AppError from "../utils/AppError.js";
 
 export const updateProfile = async (userId, { username }) => {
-    const user = await userRepository.findById(userId);
+    const user = await userRepository.findProfileById(userId);
     if (!user) {
         throw new AppError("User not found", 404);
     }
@@ -13,7 +13,7 @@ export const updateProfile = async (userId, { username }) => {
 };
 
 export const updateAvatar = async (userId, fileBuffer) => {
-    const user = await userRepository.findById(userId);
+    const user = await userRepository.findProfileById(userId);
     if (!user) {
         throw new AppError("User not found", 404);
     }
