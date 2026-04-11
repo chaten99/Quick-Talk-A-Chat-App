@@ -21,13 +21,52 @@ export const sendMessage = async (req, res, next) => {
         const { conversationId } = req.params;
         const { content } = req.body;
 
-        if (!content || content.trim() === "") {
-            throw new AppError("Content is required", 400);
+        if ((!content || content.trim() === "") && !req.file) {
+            throw new AppError("Message text or file is required", 400);
         }
 
-        const message = await messageService.sendMessage(conversationId, req.userId, content.trim());
+        const message = await messageService.sendMessage(
+            conversationId,
+            req.userId,
+            content,
+            req.file
+        );
 
         return responseHelper.success(res, "Message sent", message, 201);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateMessage = async (req, res, next) => {
+    try {
+        const { conversationId, messageId } = req.params;
+        const { content } = req.body;
+
+        const message = await messageService.updateMessage(
+            conversationId,
+            messageId,
+            req.userId,
+            content
+        );
+
+        return responseHelper.success(res, "Message updated", message);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deleteMessage = async (req, res, next) => {
+    try {
+        const { conversationId, messageId } = req.params;
+
+        const result = await messageService.deleteMessage(
+            conversationId,
+            messageId,
+            req.userId
+        );
+
+        return responseHelper.success(res, "Message deleted", result);
     } catch (error) {
         next(error);
     }

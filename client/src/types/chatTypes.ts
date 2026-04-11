@@ -1,4 +1,5 @@
 export type MessageStatus = "sent" | "delivered" | "read";
+export type MessageAttachmentKind = "image" | "video" | "pdf";
 
 export interface ChatUser {
     _id: string;
@@ -14,6 +15,16 @@ export interface MessageSeen {
     seen_at: string;
 }
 
+export interface MessageAttachment {
+    url: string;
+    public_id?: string;
+    file_name: string;
+    mime_type: string;
+    size: number;
+    kind: MessageAttachmentKind;
+    resource_type?: "image" | "video" | "raw";
+}
+
 export interface Message {
     _id: string;
     conversation_id: string;
@@ -21,6 +32,8 @@ export interface Message {
     content: string;
     message_type: "text" | "file";
     status: MessageStatus;
+    is_edited?: boolean;
+    attachment?: MessageAttachment | null;
     seen_by?: MessageSeen[];
     createdAt: string;
     updatedAt: string;
@@ -34,7 +47,7 @@ export interface Conversation {
     group_avatar?: string;
     unread_count: number;
     can_message?: boolean;
-    last_message?: Message;
+    last_message?: Message | null;
     friend?: ChatUser;
     members?: ChatUser[];
     member_count?: number;

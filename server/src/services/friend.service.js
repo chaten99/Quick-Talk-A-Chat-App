@@ -74,9 +74,6 @@ export const acceptRequest = async (requestId, userId) => {
     await friendRepository.updateRequestStatus(requestId, "accepted");
     await friendRepository.addFriend(request.sender_id._id, request.receiver_id._id);
 
-    await userRepository.clearProfileCache(request.sender_id._id.toString());
-    await userRepository.clearProfileCache(request.receiver_id._id.toString());
-
     const receiver = await userRepository.findProfileById(userId);
 
     const notification = await notificationRepository.create({
@@ -188,9 +185,6 @@ export const removeFriend = async (userId, friendId) => {
     }
 
     await friendRepository.removeFriend(userId, friendId);
-    await userRepository.clearProfileCache(userId);
-    await userRepository.clearProfileCache(friendId);
-
     emitToUser(friendId, "friend:removed", { userId });
 
     return { removed: true };

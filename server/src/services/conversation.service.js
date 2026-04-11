@@ -141,6 +141,22 @@ const withMessagingState = (conversation, friendIds) => {
   };
 };
 
+export const getConversationForUser = async (conversationId, userId) => {
+  const conversation = await conversationRepo.getConversationByIdAndUserId(
+    conversationId,
+    userId,
+  );
+
+  if (!conversation) {
+    return null;
+  }
+
+  const hydratedConversation = await hydrateConversationPresence(conversation);
+  const friendIds = new Set(await userRepository.getFriendsIds(userId));
+
+  return withMessagingState(hydratedConversation, friendIds);
+};
+
 const uploadGroupAvatar = async (fileBuffer) => {
   if (!fileBuffer) {
     return "";
