@@ -5,6 +5,16 @@ import type { ChatUser, Conversation, Message, MessageStatus } from "../types/ch
 import type { AxiosError } from "axios";
 import { toast } from "react-toastify";
 
+type SendMessagePayload = {
+    content?: string;
+    file?: File | null;
+};
+
+type UpdateConversationLastMessageOptions = {
+    incrementUnread?: boolean;
+    syncUpdatedAt?: boolean;
+};
+
 interface ChatState {
     conversations: Conversation[];
     messages: Record<string, Message[]>;
@@ -20,11 +30,19 @@ interface ChatState {
     fetchConversations: (page?: number) => Promise<void>;
     fetchMessages: (conversationId: string, page?: number) => Promise<void>;
     setActiveConversation: (conversationId: string | null) => void;
-    sendMessage: (content: string) => Promise<void>;
+    sendMessage: (payload: SendMessagePayload) => Promise<Message | null>;
+    editMessage: (messageId: string, content: string) => Promise<Message>;
+    deleteMessage: (messageId: string) => Promise<void>;
     addMessage: (conversationId: string, message: Message) => void;
+    applyMessageUpdate: (conversationId: string, message: Message) => void;
+    applyMessageDelete: (conversationId: string, messageId: string) => void;
     upsertConversation: (conversation: Conversation) => void;
     updateMessageStatus: (conversationId: string, status: MessageStatus) => void;
-    updateConversationLastMessage: (conversationId: string, message: Message, incrementUnread?: boolean) => void;
+    updateConversationLastMessage: (
+        conversationId: string,
+        message: Message | null,
+        options?: UpdateConversationLastMessageOptions
+    ) => void;
     updateFriendPresence: (userId: string, isOnline: boolean, lastSeen?: string) => void;
     updateConversationMessagingPermission: (friendId: string, canMessage: boolean) => void;
     applyMessageSeenUpdate: (conversationId: string, messageIds: string[], seenBy: ChatUser, seenAt: string) => void;
@@ -38,6 +56,10 @@ const sortConversations = (conversations: Conversation[]) => {
     return conversations.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 };
 
+const sortMessages = (messages: Message[]) => {
+    return messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+};
+
 const getMessageSenderId = (message: Message) => {
     return typeof message.sender_id === "object" && message.sender_id !== null
         ? message.sender_id._id
@@ -48,6 +70,19 @@ const getSeenUserId = (user: ChatUser | string) => {
     return typeof user === "object" && user !== null
         ? user._id
         : user;
+};
+
+const upsertMessageList = (messages: Message[], message: Message) => {
+    const existingIndex = messages.findIndex((currentMessage) => currentMessage._id === message._id);
+
+    if (existingIndex === -1) {
+        return sortMessages([...messages, message]);
+    }
+
+    const nextMessages = [...messages];
+    nextMessages[existingIndex] = message;
+
+    return sortMessages(nextMessages);
 };
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -103,7 +138,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     : [...sortedMessages, ...existing];
 
                 const seenIds = new Set<string>();
-                const uniqueMessages = updatedMessages.filter((message) => {
+                const uniqueMessages = sortMessages(updatedMessages).filter((message) => {
                     if (seenIds.has(message._id)) {
                         return false;
                     }
@@ -155,16 +190,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
-    sendMessage: async (content: string) => {
+    sendMessage: async (payload: SendMessagePayload) => {
         const { activeConversationId } = get();
-        if (!activeConversationId) return;
+
+        if (!activeConversationId) {
+            return null;
+        }
 
         try {
             set({ sendingMessage: true });
-            const message = await chatApi.sendMessage(activeConversationId, content);
+            const message = await chatApi.sendMessage(activeConversationId, payload);
 
             get().addMessage(activeConversationId, message);
-            get().updateConversationLastMessage(activeConversationId, message, false);
+            get().updateConversationLastMessage(activeConversationId, message, {
+                syncUpdatedAt: true
+            });
+
+            return message;
         } catch (error) {
             const apiError = error as AxiosError<{ message: string }>;
             const errorMessage = apiError.response?.data?.message || "Failed to send message";
@@ -180,26 +222,54 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
 
             toast.error(errorMessage);
+            return null;
         } finally {
             set({ sendingMessage: false });
         }
     },
 
+    editMessage: async (messageId: string, content: string) => {
+        const { activeConversationId } = get();
+
+        if (!activeConversationId) {
+            throw new Error("No active conversation selected");
+        }
+
+        try {
+            const message = await chatApi.updateMessage(activeConversationId, messageId, content);
+            get().applyMessageUpdate(activeConversationId, message);
+            return message;
+        } catch (error) {
+            const apiError = error as AxiosError<{ message: string }>;
+            toast.error(apiError.response?.data?.message || "Failed to update message");
+            throw error;
+        }
+    },
+
+    deleteMessage: async (messageId: string) => {
+        const { activeConversationId } = get();
+
+        if (!activeConversationId) {
+            throw new Error("No active conversation selected");
+        }
+
+        try {
+            await chatApi.deleteMessage(activeConversationId, messageId);
+            get().applyMessageDelete(activeConversationId, messageId);
+        } catch (error) {
+            const apiError = error as AxiosError<{ message: string }>;
+            toast.error(apiError.response?.data?.message || "Failed to delete message");
+            throw error;
+        }
+    },
+
     addMessage: (conversationId: string, message: Message) => {
-        set((state) => {
-            const currentMessages = state.messages[conversationId] || [];
-
-            if (currentMessages.some((currentMessage) => currentMessage._id === message._id)) {
-                return state;
+        set((state) => ({
+            messages: {
+                ...state.messages,
+                [conversationId]: upsertMessageList(state.messages[conversationId] || [], message)
             }
-
-            return {
-                messages: {
-                    ...state.messages,
-                    [conversationId]: [...currentMessages, message]
-                }
-            };
-        });
+        }));
 
         if (
             get().activeConversationId === conversationId &&
@@ -207,6 +277,48 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ) {
             void get().markConversationAsRead(conversationId);
         }
+    },
+
+    applyMessageUpdate: (conversationId: string, message: Message) => {
+        set((state) => ({
+            messages: {
+                ...state.messages,
+                [conversationId]: upsertMessageList(state.messages[conversationId] || [], message)
+            },
+            conversations: state.conversations.map((conversation) => {
+                if (conversation._id !== conversationId || conversation.last_message?._id !== message._id) {
+                    return conversation;
+                }
+
+                return {
+                    ...conversation,
+                    last_message: message
+                };
+            })
+        }));
+    },
+
+    applyMessageDelete: (conversationId: string, messageId: string) => {
+        set((state) => {
+            const nextMessages = (state.messages[conversationId] || []).filter((message) => message._id !== messageId);
+
+            return {
+                messages: {
+                    ...state.messages,
+                    [conversationId]: nextMessages
+                },
+                conversations: state.conversations.map((conversation) => {
+                    if (conversation._id !== conversationId || conversation.last_message?._id !== messageId) {
+                        return conversation;
+                    }
+
+                    return {
+                        ...conversation,
+                        last_message: nextMessages.at(-1) || null
+                    };
+                })
+            };
+        });
     },
 
     upsertConversation: (conversation: Conversation) => {
@@ -220,8 +332,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     ...existingConversation,
                     ...conversation,
                     can_message: conversation.can_message ?? existingConversation.can_message ?? true,
-                    friend: conversation.friend || existingConversation.friend,
-                    last_message: conversation.last_message || existingConversation.last_message,
+                    friend: conversation.friend ?? existingConversation.friend,
+                    members: conversation.members ?? existingConversation.members,
+                    member_count: conversation.member_count ?? existingConversation.member_count,
+                    last_message: conversation.last_message !== undefined
+                        ? conversation.last_message
+                        : existingConversation.last_message,
                 }
                 : { ...conversation, can_message: conversation.can_message ?? true };
 
@@ -339,17 +455,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
     },
 
-    updateConversationLastMessage: (conversationId: string, message: Message, incrementUnread = false) => {
+    updateConversationLastMessage: (
+        conversationId: string,
+        message: Message | null,
+        options: UpdateConversationLastMessageOptions = {}
+    ) => {
+        const { incrementUnread = false, syncUpdatedAt = false } = options;
+
         set((state) => {
             const index = state.conversations.findIndex((conversation) => conversation._id === conversationId);
-            if (index === -1) return state;
+
+            if (index === -1) {
+                return state;
+            }
 
             const conversations = [...state.conversations];
             const conversation = { ...conversations[index] };
 
             conversation.last_message = message;
-            conversation.updatedAt = message.createdAt;
-            if (incrementUnread) conversation.unread_count += 1;
+
+            if (syncUpdatedAt && message) {
+                conversation.updatedAt = message.createdAt;
+            }
+
+            if (incrementUnread) {
+                conversation.unread_count += 1;
+            }
 
             conversations[index] = conversation;
 
@@ -462,4 +593,3 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     }
 }));
-

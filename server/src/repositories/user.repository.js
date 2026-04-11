@@ -1,12 +1,9 @@
 import User from "../models/user.model.js";
 import {
-    deleteCachedUserProfile,
-    getCachedUserProfile,
     getUsersPresence as getRedisUsersPresence,
     markUserOffline,
     markUserOnline,
-    refreshUserOnline,
-    setCachedUserProfile
+    refreshUserOnline
 } from "../config/redis.js";
 
 const profileSelect = "username email phone avatar authProvider googleId friends createdAt updatedAt last_seen is_online";
@@ -33,32 +30,13 @@ const applyPresence = (user, presence) => {
     };
 };
 
-const getCachedOrDbProfile = async (id) => {
-    const cached = await getCachedUserProfile(id);
-
-    if (cached) {
-        return cached;
-    }
-
-    const user = await User.findById(id).select(profileSelect).lean();
-
-    if (!user) {
-        return null;
-    }
-
-    const cachedUser = await setCachedUserProfile(user);
-    return cachedUser || user;
-};
-
 export const findByEmail = (email) => {
     return User.findOne({ email });
 };
 
 export const createUser = async (userData) => {
     const user = new User(userData);
-    const savedUser = await user.save();
-    await setCachedUserProfile(savedUser);
-    return savedUser;
+    return user.save();
 };
 
 export const findById = (id) => {
@@ -66,7 +44,7 @@ export const findById = (id) => {
 };
 
 export const findProfileById = async (id) => {
-    const user = await getCachedOrDbProfile(id);
+    const user = await User.findById(id).select(profileSelect).lean();
 
     if (!user) {
         return null;
@@ -89,19 +67,22 @@ export const findByGoogleId = (googleId) => {
 
 export const findOrCreateGoogleUser = async ({ googleId, email, username, avatar }) => {
     const existingUser = await User.findOne({ googleId });
+
     if (existingUser) {
-        await setCachedUserProfile(existingUser);
         return existingUser;
     }
 
     const existingEmail = await User.findOne({ email });
+
     if (existingEmail) {
         existingEmail.googleId = googleId;
         existingEmail.authProvider = "google";
-        if (!existingEmail.avatar && avatar) existingEmail.avatar = avatar;
-        const updatedUser = await existingEmail.save();
-        await setCachedUserProfile(updatedUser);
-        return updatedUser;
+
+        if (!existingEmail.avatar && avatar) {
+            existingEmail.avatar = avatar;
+        }
+
+        return existingEmail.save();
     }
 
     const user = new User({
@@ -111,13 +92,13 @@ export const findOrCreateGoogleUser = async ({ googleId, email, username, avatar
         avatar,
         authProvider: "google",
     });
-    const savedUser = await user.save();
-    await setCachedUserProfile(savedUser);
-    return savedUser;
+
+    return user.save();
 };
 
 export const searchUsers = (query, currentUserId, page = 1, limit = 20) => {
     const regex = new RegExp(query, "i");
+
     return User.find({
         _id: { $ne: currentUserId },
         $or: [
@@ -187,21 +168,11 @@ export const hydrateUsersPresence = async (users = []) => {
     return plainUsers.map((user) => applyPresence(user, presenceMap.get(user._id.toString())));
 };
 
-export const clearProfileCache = async (userId) => {
-    await deleteCachedUserProfile(userId);
-};
-
 export const getFriendsIds = async (userId) => {
-    const user = await getCachedOrDbProfile(userId);
-    return user?.friends?.map((f) => f.toString()) || [];
+    const user = await User.findById(userId).select("friends").lean();
+    return user?.friends?.map((friendId) => friendId.toString()) || [];
 };
 
 export const updateProfile = async (userId, data) => {
-    const updatedUser = await User.findByIdAndUpdate(userId, data, { returnDocument: "after" });
-
-    if (updatedUser) {
-        await setCachedUserProfile(updatedUser);
-    }
-
-    return updatedUser;
+    return User.findByIdAndUpdate(userId, data, { returnDocument: "after" });
 };

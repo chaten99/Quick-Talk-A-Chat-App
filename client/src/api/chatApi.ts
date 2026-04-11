@@ -8,6 +8,11 @@ type CreateGroupConversationPayload = {
     avatar?: File | null;
 };
 
+type SendMessagePayload = {
+    content?: string;
+    file?: File | null;
+};
+
 export const chatApi = {
     getConversations: async (page = 1, limit = 20) => {
         const response = await apiClient.get<{ success: boolean; data: PaginatedConversations }>(
@@ -73,10 +78,48 @@ export const chatApi = {
         return response.data.data;
     },
 
-    sendMessage: async (conversationId: string, content: string) => {
-        const response = await apiClient.post<{ success: boolean; data: Message }>(
-            API_CONFIG.ENDPOINTS.MESSAGES.SEND(conversationId),
+    sendMessage: async (conversationId: string, payload: SendMessagePayload) => {
+        const hasFile = Boolean(payload.file);
+
+        const response = hasFile
+            ? await apiClient.post<{ success: boolean; data: Message }>(
+                API_CONFIG.ENDPOINTS.MESSAGES.SEND(conversationId),
+                (() => {
+                    const formData = new FormData();
+
+                    if (payload.content) {
+                        formData.append("content", payload.content);
+                    }
+
+                    if (payload.file) {
+                        formData.append("file", payload.file);
+                    }
+
+                    return formData;
+                })(),
+                {
+                    headers: { "Content-Type": "multipart/form-data" }
+                }
+            )
+            : await apiClient.post<{ success: boolean; data: Message }>(
+                API_CONFIG.ENDPOINTS.MESSAGES.SEND(conversationId),
+                { content: payload.content }
+            );
+
+        return response.data.data;
+    },
+
+    updateMessage: async (conversationId: string, messageId: string, content: string) => {
+        const response = await apiClient.patch<{ success: boolean; data: Message }>(
+            API_CONFIG.ENDPOINTS.MESSAGES.UPDATE(conversationId, messageId),
             { content }
+        );
+        return response.data.data;
+    },
+
+    deleteMessage: async (conversationId: string, messageId: string) => {
+        const response = await apiClient.delete<{ success: boolean; data: { messageId: string } }>(
+            API_CONFIG.ENDPOINTS.MESSAGES.DELETE(conversationId, messageId)
         );
         return response.data.data;
     },

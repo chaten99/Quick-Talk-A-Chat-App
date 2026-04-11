@@ -1,6 +1,13 @@
 import express from "express";
-import { getMessages, sendMessage, markAsRead } from "../controllers/message.controller.js";
+import {
+    deleteMessage,
+    getMessages,
+    markAsRead,
+    sendMessage,
+    updateMessage
+} from "../controllers/message.controller.js";
 import {  protect } from "../middlewares/auth.middleware.js";
+import { uploadMessageAttachment } from "../middlewares/upload.middleware.js";
 
 const router = express.Router({ mergeParams: true });
 
@@ -83,7 +90,11 @@ router.get("/:conversationId", getMessages);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/:conversationId", sendMessage);
+router.post("/:conversationId", uploadMessageAttachment, sendMessage);
+
+router.patch("/:conversationId/:messageId", updateMessage);
+
+router.delete("/:conversationId/:messageId", deleteMessage);
 
 /**
  * @swagger

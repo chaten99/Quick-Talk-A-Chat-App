@@ -29,6 +29,36 @@ export const updateMessageStatus = async (messageId, status) => {
         .exec();
 };
 
+export const getMessageById = async (messageId) => {
+    return Message.findById(messageId)
+        .populate("sender_id", "username avatar")
+        .populate("seen_by.user_id", "username avatar")
+        .exec();
+};
+
+export const updateMessage = async (messageId, updateData) => {
+    return Message.findByIdAndUpdate(
+        messageId,
+        updateData,
+        { returnDocument: "after" }
+    )
+        .populate("sender_id", "username avatar")
+        .populate("seen_by.user_id", "username avatar")
+        .exec();
+};
+
+export const deleteMessageById = async (messageId) => {
+    return Message.findByIdAndDelete(messageId).exec();
+};
+
+export const getLatestMessageByConversation = async (conversationId) => {
+    return Message.findOne({ conversation_id: conversationId })
+        .sort({ createdAt: -1 })
+        .populate("sender_id", "username avatar")
+        .populate("seen_by.user_id", "username avatar")
+        .exec();
+};
+
 export const updateMessagesStatusInConversation = async (conversationId, excludeSenderId, oldStatuses, newStatus) => {
     return Message.updateMany(
         { 

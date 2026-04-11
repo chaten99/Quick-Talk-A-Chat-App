@@ -55,7 +55,7 @@ const ConversationList = () => {
         return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     };
 
-    const getMessageSenderId = (message?: Message) => {
+    const getMessageSenderId = (message?: Message | null) => {
         if (!message) return "";
 
         return typeof message.sender_id === "object" && message.sender_id !== null
@@ -63,7 +63,7 @@ const ConversationList = () => {
             : message.sender_id;
     };
 
-    const getMessageSenderName = (message?: Message) => {
+    const getMessageSenderName = (message?: Message | null) => {
         if (!message || typeof message.sender_id !== "object" || message.sender_id === null) {
             return "";
         }
@@ -78,21 +78,38 @@ const ConversationList = () => {
     };
 
     const getConversationPreview = (conversation: Conversation, isLastMine: boolean) => {
-        if (!conversation.last_message?.content) {
+        if (!conversation.last_message) {
+            return conversation.is_group ? "Start the group conversation" : "Say hi!";
+        }
+
+        const { last_message: lastMessage } = conversation;
+        const attachmentLabel = lastMessage.attachment?.kind === "image"
+            ? "Photo"
+            : lastMessage.attachment?.kind === "video"
+                ? "Video"
+                : lastMessage.attachment?.kind === "pdf"
+                    ? "PDF"
+                    : "";
+        const textContent = lastMessage.content?.trim();
+        const previewContent = attachmentLabel && textContent
+            ? `${attachmentLabel}: ${textContent}`
+            : attachmentLabel || textContent;
+
+        if (!previewContent) {
             return conversation.is_group ? "Start the group conversation" : "Say hi!";
         }
 
         if (!conversation.is_group) {
-            return conversation.last_message.content;
+            return previewContent;
         }
 
-        const senderName = isLastMine ? "You" : getMessageSenderName(conversation.last_message);
+        const senderName = isLastMine ? "You" : getMessageSenderName(lastMessage);
 
         if (!senderName) {
-            return conversation.last_message.content;
+            return previewContent;
         }
 
-        return `${senderName}: ${conversation.last_message.content}`;
+        return `${senderName}: ${previewContent}`;
     };
 
     const renderMessageStatus = (conversation: Conversation, status: MessageStatus | undefined, isMine: boolean) => {
@@ -227,6 +244,11 @@ const ConversationList = () => {
                                             <p className={`text-xs truncate ${conversation.unread_count > 0 ? "text-white font-medium" : "text-slate-400"}`}>
                                                 {preview}
                                             </p>
+                                            {conversation.last_message?.is_edited && (
+                                                <span className="shrink-0 text-[10px] font-medium text-slate-500">
+                                                    edited
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 

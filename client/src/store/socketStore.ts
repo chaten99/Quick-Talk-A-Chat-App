@@ -85,7 +85,30 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
 
             if (!conversation) {
                 const incrementUnread = chatStore.activeConversationId !== conversationId;
-                chatStore.updateConversationLastMessage(conversationId, message, incrementUnread);
+                chatStore.updateConversationLastMessage(conversationId, message, {
+                    incrementUnread,
+                    syncUpdatedAt: true
+                });
+            }
+        });
+
+        socket.on("message:updated", (data: { message: Message; conversationId: string; conversation?: Conversation }) => {
+            const chatStore = useChatStore.getState();
+
+            chatStore.applyMessageUpdate(data.conversationId, data.message);
+
+            if (data.conversation) {
+                chatStore.upsertConversation(data.conversation);
+            }
+        });
+
+        socket.on("message:deleted", (data: { messageId: string; conversationId: string; conversation?: Conversation }) => {
+            const chatStore = useChatStore.getState();
+
+            chatStore.applyMessageDelete(data.conversationId, data.messageId);
+
+            if (data.conversation) {
+                chatStore.upsertConversation(data.conversation);
             }
         });
 

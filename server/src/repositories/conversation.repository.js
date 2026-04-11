@@ -99,6 +99,8 @@ const buildConversationPipeline = (matchStage, userId, options = {}) => {
                             content: "$last_message.content",
                             message_type: "$last_message.message_type",
                             status: "$last_message.status",
+                            is_edited: "$last_message.is_edited",
+                            attachment: "$last_message.attachment",
                             seen_by: "$last_message.seen_by",
                             createdAt: "$last_message.createdAt",
                             updatedAt: "$last_message.updatedAt"
@@ -305,6 +307,18 @@ export const incrementUnreadCount = async (conversationId, memberUserId) => {
     return ConversationMember.findOneAndUpdate(
         { conversation_id: conversationId, user_id: memberUserId },
         { $inc: { unread_count: 1 } },
+        { returnDocument: "after" }
+    );
+};
+
+export const decrementUnreadCount = async (conversationId, memberUserId) => {
+    return ConversationMember.findOneAndUpdate(
+        {
+            conversation_id: conversationId,
+            user_id: memberUserId,
+            unread_count: { $gt: 0 }
+        },
+        { $inc: { unread_count: -1 } },
         { returnDocument: "after" }
     );
 };
