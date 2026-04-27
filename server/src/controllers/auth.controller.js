@@ -41,7 +41,7 @@ const buildAuthUser = (user) => ({
 export const signup = async (req, res, next) => {
     try {
         const user = await authService.signup(req.body);
-        const token = generateTokenm({ id: user._id });
+        const token = generateToken({ id: user._id });
 
         res.cookie("token", token, cookieOptions);
         return responseHelper.success(res, "Signup successful", buildAuthUser(user), 201);
