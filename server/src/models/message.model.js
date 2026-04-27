@@ -64,6 +64,25 @@ const schema = new mongoose.Schema({
             default: Date.now,
         }
     }],
+    reactions: [{
+        _id: false,
+        user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true
+        },
+        emoji: {
+            type: String,
+            required: true
+        },
+        reacted_at: {
+            type: Date,
+            default: Date.now
+        }
+    }]
 }, {timestamps: true});
+
+schema.index({ conversation_id: 1, createdAt: -1 });
+schema.index({ "reactions.user_id": 1 });
 
 export default mongoose.model("Message", schema);

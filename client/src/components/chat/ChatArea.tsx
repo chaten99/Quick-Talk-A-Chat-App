@@ -6,6 +6,7 @@ import {
     type ChangeEvent,
     type FormEvent,
     type KeyboardEvent,
+    type PointerEvent,
     type ReactNode
 } from "react";
 import {
@@ -28,7 +29,7 @@ import EmojiPicker, { EmojiStyle, Theme, type EmojiClickData } from "emoji-picke
 import { useAuthStore } from "../../store/authStore";
 import { useChatStore } from "../../store/chatStore";
 import { useSocketStore } from "../../store/socketStore";
-import type { ChatUser, Message, MessageAttachment, MessageStatus } from "../../types/chatTypes";
+import type { ChatUser, Message, MessageAttachment, MessageReaction, MessageStatus } from "../../types/chatTypes";
 import ConversationInfoDialog from "./ConversationInfoDialog";
 import ConfirmDialog from "../ui/ConfirmDialog";
 
@@ -134,6 +135,96 @@ const renderMessageStatus = (status: MessageStatus) => {
     }
 
     return <Check className="w-3.5 h-3.5 text-slate-500" />;
+};
+
+const REACTION_OPTIONS = ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F62E}", "\u{1F622}", "\u{1F64F}"];
+const REACTION_PICKER_WIDTH = 256;
+const REACTION_PICKER_HEIGHT = 48;
+const REACTION_PICKER_MARGIN = 8;
+
+type GroupedReaction = {
+    emoji: string;
+    count: number;
+    reactedAt: string;
+};
+
+type ReactionPickerState = {
+    messageId: string;
+    left: number;
+    top: number;
+};
+
+const getReactionUserId = (reaction: MessageReaction) => {
+    return typeof reaction.user_id === "object" && reaction.user_id !== null
+        ? reaction.user_id._id
+        : reaction.user_id;
+};
+
+const getReactionUser = (reaction: MessageReaction) => {
+    return typeof reaction.user_id === "object" && reaction.user_id !== null
+        ? reaction.user_id
+        : null;
+};
+
+const getGroupedReactions = (message: Message) => {
+    const grouped = new Map<string, GroupedReaction>();
+
+    (message.reactions || []).forEach((reaction) => {
+        const currentGroup = grouped.get(reaction.emoji);
+
+        if (!currentGroup) {
+            grouped.set(reaction.emoji, {
+                emoji: reaction.emoji,
+                count: 1,
+                reactedAt: reaction.reacted_at
+            });
+            return;
+        }
+
+        currentGroup.count += 1;
+
+        if (new Date(reaction.reacted_at).getTime() > new Date(currentGroup.reactedAt).getTime()) {
+            currentGroup.reactedAt = reaction.reacted_at;
+        }
+    });
+
+    return Array.from(grouped.values()).sort(
+        (a, b) => new Date(b.reactedAt).getTime() - new Date(a.reactedAt).getTime()
+    );
+};
+
+const getCurrentUserReaction = (message: Message, userId?: string) => {
+    if (!userId) {
+        return "";
+    }
+
+    const reaction = (message.reactions || []).find((entry) => getReactionUserId(entry) === userId);
+    return reaction?.emoji || "";
+};
+
+const formatReactionTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const clampReactionPickerPosition = (left: number, top: number, fallbackTop: number) => {
+    const viewportWidth = window.innerWidth || REACTION_PICKER_WIDTH;
+    const viewportHeight = window.innerHeight || REACTION_PICKER_HEIGHT;
+    const maxLeft = Math.max(REACTION_PICKER_MARGIN, viewportWidth - REACTION_PICKER_WIDTH - REACTION_PICKER_MARGIN);
+    const maxTop = Math.max(REACTION_PICKER_MARGIN, viewportHeight - REACTION_PICKER_HEIGHT - REACTION_PICKER_MARGIN);
+
+    if (viewportWidth < 640) {
+        return {
+            left: Math.min(Math.max((viewportWidth - REACTION_PICKER_WIDTH) / 2, REACTION_PICKER_MARGIN), maxLeft),
+            top: Math.min(Math.max(viewportHeight - REACTION_PICKER_HEIGHT - 96, REACTION_PICKER_MARGIN), maxTop)
+        };
+    }
+
+    const nextTop = top < REACTION_PICKER_MARGIN ? fallbackTop : top;
+
+    return {
+        left: Math.min(Math.max(left, REACTION_PICKER_MARGIN), maxLeft),
+        top: Math.min(Math.max(nextTop, REACTION_PICKER_MARGIN), maxTop)
+    };
 };
 
 type AttachmentPreviewProps = {
@@ -261,6 +352,142 @@ const SelectedAttachmentPreview = ({ file, previewUrl, onRemove }: SelectedAttac
     );
 };
 
+type ReactionDetailsDialogProps = {
+    message: Message | null;
+    initialEmoji: string;
+    currentUserId?: string;
+    onClose: () => void;
+};
+
+const ReactionDetailsDialog = ({
+    message,
+    initialEmoji,
+    currentUserId,
+    onClose
+}: ReactionDetailsDialogProps) => {
+    const [selectedEmoji, setSelectedEmoji] = useState(initialEmoji);
+    const reactions = useMemo(
+        () => [...(message?.reactions || [])].sort(
+            (a, b) => new Date(b.reacted_at).getTime() - new Date(a.reacted_at).getTime()
+        ),
+        [message?.reactions]
+    );
+    const groupedReactions = useMemo(
+        () => message ? getGroupedReactions(message) : [],
+        [message]
+    );
+    const visibleReactions = selectedEmoji
+        ? reactions.filter((reaction) => reaction.emoji === selectedEmoji)
+        : reactions;
+
+    useEffect(() => {
+        setSelectedEmoji(initialEmoji);
+    }, [initialEmoji, message?._id]);
+
+    if (!message || reactions.length === 0) {
+        return null;
+    }
+
+    return (
+        <div
+            className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/75 backdrop-blur-md animate-fade-in sm:items-center"
+            onClick={onClose}
+        >
+            <div
+                className="relative w-full max-h-[78vh] rounded-t-[28px] border border-white/[0.08] bg-[#0c1020] shadow-2xl animate-slide-up sm:mx-4 sm:max-w-md sm:rounded-[28px]"
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+                    <div className="min-w-0">
+                        <h3 className="text-base font-bold text-white">Reactions</h3>
+                        <p className="mt-0.5 text-xs text-slate-400">
+                            {reactions.length} {reactions.length === 1 ? "reaction" : "reactions"}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="w-9 h-9 shrink-0 rounded-xl border border-white/[0.06] bg-white/[0.04] flex items-center justify-center text-slate-300 transition-all duration-200 hover:bg-white/[0.08] hover:text-white cursor-pointer"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto border-b border-white/[0.06] px-4 py-3 scrollbar-none">
+                    <button
+                        type="button"
+                        onClick={() => setSelectedEmoji("")}
+                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                            selectedEmoji === ""
+                                ? "border-indigo-400/40 bg-indigo-500/20 text-indigo-100"
+                                : "border-white/[0.08] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                        }`}
+                    >
+                        All {reactions.length}
+                    </button>
+                    {groupedReactions.map((reaction) => (
+                        <button
+                            key={reaction.emoji}
+                            type="button"
+                            onClick={() => setSelectedEmoji(reaction.emoji)}
+                            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                                selectedEmoji === reaction.emoji
+                                    ? "border-indigo-400/40 bg-indigo-500/20 text-indigo-100"
+                                    : "border-white/[0.08] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                            }`}
+                        >
+                            <span>{reaction.emoji}</span>
+                            <span>{reaction.count}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="max-h-[52vh] overflow-y-auto px-3 py-2 scrollbar-thin">
+                    {visibleReactions.map((reaction, index) => {
+                        const reactionUser = getReactionUser(reaction);
+                        const reactionUserId = getReactionUserId(reaction);
+                        const isCurrentUser = reactionUserId === currentUserId;
+                        const displayName = isCurrentUser
+                            ? "You"
+                            : reactionUser?.username || "Unknown user";
+                        const avatar = reactionUser?.avatar;
+
+                        return (
+                            <div
+                                key={`${reactionUserId}-${reaction.emoji}-${reaction.reacted_at}-${index}`}
+                                className="flex items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors duration-200 hover:bg-white/[0.04]"
+                            >
+                                {avatar ? (
+                                    <img
+                                        src={avatar}
+                                        alt={displayName}
+                                        className="w-10 h-10 rounded-full object-cover ring-2 ring-white/10"
+                                    />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/80 to-indigo-600/80 flex items-center justify-center ring-2 ring-white/10">
+                                        <span className="text-sm font-semibold text-white">
+                                            {displayName.charAt(0).toUpperCase()}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                                    <p className="mt-0.5 text-xs text-slate-500">{formatReactionTime(reaction.reacted_at)}</p>
+                                </div>
+
+                                <div className="w-10 h-10 shrink-0 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-xl">
+                                    {reaction.emoji}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const ChatArea = () => {
     const { user } = useAuthStore();
     const { socket } = useSocketStore();
@@ -272,8 +499,10 @@ const ChatArea = () => {
         hasMoreMessages,
         loadingMessages,
         sendingMessage,
+        reactionLoading,
         typingUsers,
         sendMessage,
+        toggleReaction,
         editMessage,
         deleteMessage,
         fetchMessages,
@@ -288,6 +517,9 @@ const ChatArea = () => {
     const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [openActionMenuMessageId, setOpenActionMenuMessageId] = useState<string | null>(null);
+    const [reactionPickerState, setReactionPickerState] = useState<ReactionPickerState | null>(null);
+    const [reactionDetailsMessageId, setReactionDetailsMessageId] = useState<string | null>(null);
+    const [reactionDetailsInitialEmoji, setReactionDetailsInitialEmoji] = useState("");
     const [deleteDialogMessage, setDeleteDialogMessage] = useState<Message | null>(null);
     const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [isDeletingMessage, setIsDeletingMessage] = useState(false);
@@ -298,6 +530,7 @@ const ChatArea = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const reactionLongPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const previousScrollHeightRef = useRef(0);
 
     const activeConvo = conversations.find((conversation) => conversation._id === activeConversationId);
@@ -305,6 +538,10 @@ const ChatArea = () => {
     const editingMessage = useMemo(
         () => activeMessages.find((message) => message._id === editingMessageId) || null,
         [activeMessages, editingMessageId]
+    );
+    const reactionDetailsMessage = useMemo(
+        () => activeMessages.find((message) => message._id === reactionDetailsMessageId) || null,
+        [activeMessages, reactionDetailsMessageId]
     );
     const isLoading = activeConversationId ? loadingMessages[activeConversationId] : false;
     const hasMore = activeConversationId ? hasMoreMessages[activeConversationId] : false;
@@ -377,6 +614,9 @@ const ChatArea = () => {
         setSelectedFile(null);
         setEditingMessageId(null);
         setOpenActionMenuMessageId(null);
+        setReactionPickerState(null);
+        setReactionDetailsMessageId(null);
+        setReactionDetailsInitialEmoji("");
         setIsEmojiPickerOpen(false);
         setDeleteDialogMessage(null);
 
@@ -397,6 +637,17 @@ const ChatArea = () => {
     }, [editingMessage, editingMessageId]);
 
     useEffect(() => {
+        if (!reactionDetailsMessageId) {
+            return;
+        }
+
+        if (!reactionDetailsMessage || (reactionDetailsMessage.reactions || []).length === 0) {
+            setReactionDetailsMessageId(null);
+            setReactionDetailsInitialEmoji("");
+        }
+    }, [reactionDetailsMessage, reactionDetailsMessageId]);
+
+    useEffect(() => {
         if (!openActionMenuMessageId) {
             return;
         }
@@ -406,6 +657,25 @@ const ChatArea = () => {
         window.addEventListener("click", handleWindowClick);
         return () => window.removeEventListener("click", handleWindowClick);
     }, [openActionMenuMessageId]);
+
+    useEffect(() => {
+        if (!reactionPickerState) {
+            return;
+        }
+
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement | null;
+
+            if (target?.closest("[data-reaction-surface='true']")) {
+                return;
+            }
+
+            setReactionPickerState(null);
+        };
+
+        window.addEventListener("mousedown", handlePointerDown);
+        return () => window.removeEventListener("mousedown", handlePointerDown);
+    }, [reactionPickerState]);
 
     useEffect(() => {
         if (!isEmojiPickerOpen) {
@@ -426,6 +696,10 @@ const ChatArea = () => {
         return () => {
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
+            }
+
+            if (reactionLongPressTimeoutRef.current) {
+                clearTimeout(reactionLongPressTimeoutRef.current);
             }
         };
     }, []);
@@ -459,10 +733,72 @@ const ChatArea = () => {
         }
     };
 
+    const clearReactionLongPress = () => {
+        if (!reactionLongPressTimeoutRef.current) {
+            return;
+        }
+
+        clearTimeout(reactionLongPressTimeoutRef.current);
+        reactionLongPressTimeoutRef.current = null;
+    };
+
+    const openReactionPickerFromRect = (messageId: string, rect: DOMRect, isMine: boolean) => {
+        const preferredLeft = isMine
+            ? rect.right - REACTION_PICKER_WIDTH
+            : rect.left;
+        const position = clampReactionPickerPosition(
+            preferredLeft,
+            rect.top - REACTION_PICKER_HEIGHT - REACTION_PICKER_MARGIN,
+            rect.bottom + REACTION_PICKER_MARGIN
+        );
+
+        setReactionPickerState({ messageId, ...position });
+    };
+
+    const openReactionPickerFromPoint = (messageId: string, clientX: number, clientY: number) => {
+        const position = clampReactionPickerPosition(
+            clientX - (REACTION_PICKER_WIDTH / 2),
+            clientY - REACTION_PICKER_HEIGHT - REACTION_PICKER_MARGIN,
+            clientY + REACTION_PICKER_MARGIN
+        );
+
+        setReactionPickerState({ messageId, ...position });
+    };
+
+    const handleReactionLongPressStart = (event: PointerEvent<HTMLDivElement>, messageId: string) => {
+        if (event.pointerType !== "touch") {
+            return;
+        }
+
+        const { clientX, clientY } = event;
+        clearReactionLongPress();
+        reactionLongPressTimeoutRef.current = setTimeout(() => {
+            openReactionPickerFromPoint(messageId, clientX, clientY);
+        }, 420);
+    };
+
+    const handleReactionSelect = (messageId: string, emoji: string) => {
+        setReactionPickerState(null);
+        void toggleReaction(messageId, emoji);
+    };
+
+    const handleOpenReactionDetails = (messageId: string, emoji = "") => {
+        setReactionPickerState(null);
+        setReactionDetailsMessageId(messageId);
+        setReactionDetailsInitialEmoji(emoji);
+    };
+
+    const handleCloseReactionDetails = () => {
+        setReactionDetailsMessageId(null);
+        setReactionDetailsInitialEmoji("");
+    };
+
     const handleScroll = () => {
         if (!messagesContainerRef.current || isLoading || !hasMore || !activeConversationId) {
             return;
         }
+
+        setReactionPickerState(null);
 
         if (messagesContainerRef.current.scrollTop === 0) {
             previousScrollHeightRef.current = messagesContainerRef.current.scrollHeight;
@@ -575,6 +911,9 @@ const ChatArea = () => {
         setIsInfoDialogOpen(false);
         setEditingMessageId(null);
         setOpenActionMenuMessageId(null);
+        setReactionPickerState(null);
+        setReactionDetailsMessageId(null);
+        setReactionDetailsInitialEmoji("");
         setIsEmojiPickerOpen(false);
         setDeleteDialogMessage(null);
         clearSelectedFile();
@@ -678,6 +1017,9 @@ const ChatArea = () => {
         setInput(message.content || "");
         clearSelectedFile();
         setOpenActionMenuMessageId(null);
+        setReactionPickerState(null);
+        setReactionDetailsMessageId(null);
+        setReactionDetailsInitialEmoji("");
         setIsEmojiPickerOpen(false);
         focusComposer();
     };
@@ -704,6 +1046,9 @@ const ChatArea = () => {
 
             setDeleteDialogMessage(null);
             setOpenActionMenuMessageId(null);
+            setReactionPickerState(null);
+            setReactionDetailsMessageId(null);
+            setReactionDetailsInitialEmoji("");
         } finally {
             setIsDeletingMessage(false);
         }
@@ -730,9 +1075,19 @@ const ChatArea = () => {
             const senderId = getMessageSenderId(message);
             const isMine = senderId === user?.id;
             const seenSummary = isMine && isGroupConversation ? getSeenSummary(message) : "";
+            const groupedReactions = getGroupedReactions(message);
+            const currentUserReaction = getCurrentUserReaction(message, user?.id);
+            const isReactionUpdating = Boolean(reactionLoading[message._id]);
 
             items.push(
-                <div key={message._id} className={`flex ${isMine ? "justify-end" : "justify-start"} mb-2`}>
+                <div
+                    key={message._id}
+                    className={`group flex ${isMine ? "justify-end" : "justify-start"} mb-2`}
+                    onPointerDown={(event) => handleReactionLongPressStart(event, message._id)}
+                    onPointerUp={clearReactionLongPress}
+                    onPointerCancel={clearReactionLongPress}
+                    onPointerLeave={clearReactionLongPress}
+                >
                     {isMine && (
                         <div className="relative mr-2 self-start">
                             <button
@@ -775,46 +1130,128 @@ const ChatArea = () => {
                         </div>
                     )}
 
-                    <div
-                        className={`max-w-[min(78%,440px)] px-4 py-3 rounded-[24px] relative ${
-                            isMine
-                                ? "bg-indigo-600 text-white rounded-br-sm"
-                                : "bg-[#1c2235] border border-white/[0.05] text-slate-100 rounded-bl-sm"
-                        }`}
-                    >
-                        {isGroupConversation && !isMine && (
-                            <p className="text-[11px] font-semibold text-cyan-300/80 mb-2">
-                                {getMessageSenderName(message)}
-                            </p>
-                        )}
-
-                        {message.attachment && (
-                            <div className={`${message.content?.trim() ? "mb-3" : "mb-1"}`}>
-                                <MessageAttachmentPreview attachment={message.attachment} isMine={isMine} />
-                            </div>
-                        )}
-
-                        {message.content?.trim() && (
-                            <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">{message.content}</p>
-                        )}
-
-                        <div className={`flex items-center gap-1.5 mt-2 ${isMine ? "justify-end" : "justify-start"}`}>
-                            <span className={`text-[10px] ${isMine ? "text-indigo-200/80" : "text-slate-500"}`}>
-                                {formatMessageTime(message.createdAt)}
-                            </span>
-                            {message.is_edited && (
-                                <span className={`text-[10px] ${isMine ? "text-indigo-200/80" : "text-slate-500"}`}>
-                                    edited
-                                </span>
+                    <div className={`relative flex flex-col ${isMine ? "items-end" : "items-start"} max-w-[min(86%,460px)]`}>
+                        <div
+                            className={`max-w-[min(78%,440px)] px-4 py-3 rounded-[24px] relative ${
+                                isMine
+                                    ? "bg-indigo-600 text-white rounded-br-sm"
+                                    : "bg-[#1c2235] border border-white/[0.05] text-slate-100 rounded-bl-sm"
+                            }`}
+                        >
+                            {isGroupConversation && !isMine && (
+                                <p className="text-[11px] font-semibold text-cyan-300/80 mb-2">
+                                    {getMessageSenderName(message)}
+                                </p>
                             )}
-                            {!isGroupConversation && isMine && renderMessageStatus(message.status)}
+
+                            {message.attachment && (
+                                <div className={`${message.content?.trim() ? "mb-3" : "mb-1"}`}>
+                                    <MessageAttachmentPreview attachment={message.attachment} isMine={isMine} />
+                                </div>
+                            )}
+
+                            {message.content?.trim() && (
+                                <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">{message.content}</p>
+                            )}
+
+                            <div className={`flex items-center gap-1.5 mt-2 ${isMine ? "justify-end" : "justify-start"}`}>
+                                <span className={`text-[10px] ${isMine ? "text-indigo-200/80" : "text-slate-500"}`}>
+                                    {formatMessageTime(message.createdAt)}
+                                </span>
+                                {message.is_edited && (
+                                    <span className={`text-[10px] ${isMine ? "text-indigo-200/80" : "text-slate-500"}`}>
+                                        edited
+                                    </span>
+                                )}
+                                {!isGroupConversation && isMine && renderMessageStatus(message.status)}
+                            </div>
+
+                            {seenSummary && (
+                                <p className="mt-1 text-[10px] text-indigo-100/70 text-right">
+                                    {seenSummary}
+                                </p>
+                            )}
                         </div>
 
-                        {seenSummary && (
-                            <p className="mt-1 text-[10px] text-indigo-100/70 text-right">
-                                {seenSummary}
-                            </p>
-                        )}
+                        <div
+                            data-reaction-surface="true"
+                            className={`mt-1 flex flex-wrap items-center gap-1.5 ${isMine ? "justify-end" : "justify-start"} animate-fade-in`}
+                        >
+                            {groupedReactions.map((reaction) => (
+                                <button
+                                    key={`${message._id}-${reaction.emoji}`}
+                                    type="button"
+                                    disabled={isReactionUpdating}
+                                    onClick={() => handleOpenReactionDetails(message._id, reaction.emoji)}
+                                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
+                                        reaction.emoji === currentUserReaction
+                                            ? "border-indigo-400/40 bg-indigo-500/20 text-indigo-100"
+                                            : "border-white/[0.08] bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"
+                                    } ${isReactionUpdating ? "opacity-60 cursor-not-allowed" : "hover:scale-105"}`}
+                                >
+                                    <span>{reaction.emoji}</span>
+                                    <span className="text-[11px]">{reaction.count}</span>
+                                </button>
+                            ))}
+
+                            <div className="relative" data-reaction-surface="true">
+                                <button
+                                    type="button"
+                                    aria-label="Add reaction"
+                                    disabled={isReactionUpdating}
+                                    onMouseEnter={(event) => {
+                                        openReactionPickerFromRect(message._id, event.currentTarget.getBoundingClientRect(), isMine);
+                                    }}
+                                    onClick={(event) => {
+                                        if (reactionPickerState?.messageId === message._id) {
+                                            setReactionPickerState(null);
+                                            return;
+                                        }
+
+                                        openReactionPickerFromRect(message._id, event.currentTarget.getBoundingClientRect(), isMine);
+                                    }}
+                                    className={`w-8 h-8 md:w-7 md:h-7 rounded-full border border-white/[0.1] bg-white/[0.06] flex items-center justify-center text-slate-200 transition-all duration-200 cursor-pointer ${
+                                        isReactionUpdating
+                                            ? "opacity-60 cursor-not-allowed"
+                                            : "hover:bg-white/[0.1] hover:text-white hover:scale-105"
+                                    } ${reactionPickerState?.messageId === message._id ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100"}`}
+                                >
+                                    {isReactionUpdating ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <SmilePlus className="w-3.5 h-3.5" />
+                                    )}
+                                </button>
+
+                                {reactionPickerState?.messageId === message._id && (
+                                    <div
+                                        data-reaction-surface="true"
+                                        style={{
+                                            left: reactionPickerState.left,
+                                            top: reactionPickerState.top,
+                                            width: REACTION_PICKER_WIDTH
+                                        }}
+                                        className="fixed z-50 flex max-w-[calc(100vw-16px)] items-center justify-center gap-1 rounded-full border border-white/[0.08] bg-[#11172a] px-2 py-1.5 shadow-[0_16px_30px_rgba(2,8,23,0.4)] animate-slide-up"
+                                    >
+                                        {REACTION_OPTIONS.map((emojiOption) => (
+                                            <button
+                                                key={`${message._id}-${emojiOption}`}
+                                                type="button"
+                                                disabled={isReactionUpdating}
+                                                onClick={() => void handleReactionSelect(message._id, emojiOption)}
+                                                className={`w-8 h-8 rounded-full text-[17px] leading-none flex items-center justify-center transition-all duration-200 cursor-pointer ${
+                                                    emojiOption === currentUserReaction
+                                                        ? "bg-indigo-500/25 ring-1 ring-indigo-400/40"
+                                                        : "hover:bg-white/[0.1] hover:scale-110"
+                                                } ${isReactionUpdating ? "opacity-60 cursor-not-allowed" : ""}`}
+                                            >
+                                                {emojiOption}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -1090,6 +1527,13 @@ const ChatArea = () => {
                 conversation={activeConvo}
                 currentUser={user}
                 onClose={() => setIsInfoDialogOpen(false)}
+            />
+
+            <ReactionDetailsDialog
+                message={reactionDetailsMessage}
+                initialEmoji={reactionDetailsInitialEmoji}
+                currentUserId={user?.id}
+                onClose={handleCloseReactionDetails}
             />
 
             <ConfirmDialog

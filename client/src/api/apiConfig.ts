@@ -47,6 +47,7 @@ export const API_CONFIG = {
             UPDATE: (conversationId: string, messageId: string) => `/messages/${conversationId}/${messageId}`,
             DELETE: (conversationId: string, messageId: string) => `/messages/${conversationId}/${messageId}`,
             MARK_READ: (conversationId: string) => `/messages/${conversationId}/read`,
+            REACTIONS: (conversationId: string, messageId: string) => `/messages/${conversationId}/${messageId}/reactions`,
         }
     }
 }

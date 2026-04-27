@@ -15,6 +15,12 @@ export interface MessageSeen {
     seen_at: string;
 }
 
+export interface MessageReaction {
+    user_id: ChatUser | string;
+    emoji: string;
+    reacted_at: string;
+}
+
 export interface MessageAttachment {
     url: string;
     public_id?: string;
@@ -35,6 +41,7 @@ export interface Message {
     is_edited?: boolean;
     attachment?: MessageAttachment | null;
     seen_by?: MessageSeen[];
+    reactions?: MessageReaction[];
     createdAt: string;
     updatedAt: string;
 }

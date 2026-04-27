@@ -102,6 +102,7 @@ const buildConversationPipeline = (matchStage, userId, options = {}) => {
                             is_edited: "$last_message.is_edited",
                             attachment: "$last_message.attachment",
                             seen_by: "$last_message.seen_by",
+                            reactions: "$last_message.reactions",
                             createdAt: "$last_message.createdAt",
                             updatedAt: "$last_message.updatedAt"
                         },

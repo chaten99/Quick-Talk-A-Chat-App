@@ -83,3 +83,57 @@ export const markAsRead = async (req, res, next) => {
         next(error);
     }
 };
+
+export const toggleReaction = async (req, res, next) => {
+    try {
+        const { conversationId, messageId } = req.params;
+        const { emoji } = req.body;
+
+        if (!emoji || typeof emoji !== "string" || emoji.trim() === "") {
+            throw new AppError("Emoji is required", 400);
+        }
+
+        const message = await messageService.toggleReaction(
+            conversationId,
+            messageId,
+            req.userId,
+            emoji
+        );
+
+        return responseHelper.success(res, "Reaction updated", message);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const removeReaction = async (req, res, next) => {
+    try {
+        const { conversationId, messageId } = req.params;
+
+        const message = await messageService.removeReaction(
+            conversationId,
+            messageId,
+            req.userId
+        );
+
+        return responseHelper.success(res, "Reaction removed", message);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getReactions = async (req, res, next) => {
+    try {
+        const { conversationId, messageId } = req.params;
+
+        const reactions = await messageService.getMessageReactions(
+            conversationId,
+            messageId,
+            req.userId
+        );
+
+        return responseHelper.success(res, "Reactions retrieved", reactions);
+    } catch (error) {
+        next(error);
+    }
+};

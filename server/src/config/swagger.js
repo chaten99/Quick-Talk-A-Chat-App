@@ -192,6 +192,22 @@ const options = {
             },
           },
         },
+        MessageReaction: {
+          type: "object",
+          properties: {
+            user_id: {
+              $ref: "#/components/schemas/PublicUser",
+            },
+            emoji: {
+              type: "string",
+              example: "❤️",
+            },
+            reacted_at: {
+              type: "string",
+              format: "date-time",
+            },
+          },
+        },
         Message: {
           type: "object",
           required: ["_id", "conversation_id", "sender_id", "content", "message_type", "status", "createdAt", "updatedAt"],
@@ -223,6 +239,12 @@ const options = {
               type: "array",
               items: {
                 $ref: "#/components/schemas/MessageSeen",
+              },
+            },
+            reactions: {
+              type: "array",
+              items: {
+                $ref: "#/components/schemas/MessageReaction",
               },
             },
             createdAt: {
@@ -449,6 +471,16 @@ const options = {
             content: {
               type: "string",
               example: "Hello from Quick Talk",
+            },
+          },
+        },
+        ToggleReactionRequest: {
+          type: "object",
+          required: ["emoji"],
+          properties: {
+            emoji: {
+              type: "string",
+              example: "👍",
             },
           },
         },

@@ -26,11 +26,13 @@ interface ChatState {
     loadingConversations: boolean;
     loadingMessages: Record<string, boolean>;
     sendingMessage: boolean;
+    reactionLoading: Record<string, boolean>;
     typingUsers: Record<string, string[]>;
     fetchConversations: (page?: number) => Promise<void>;
     fetchMessages: (conversationId: string, page?: number) => Promise<void>;
     setActiveConversation: (conversationId: string | null) => void;
     sendMessage: (payload: SendMessagePayload) => Promise<Message | null>;
+    toggleReaction: (messageId: string, emoji: string) => Promise<Message | null>;
     editMessage: (messageId: string, content: string) => Promise<Message>;
     deleteMessage: (messageId: string) => Promise<void>;
     addMessage: (conversationId: string, message: Message) => void;
@@ -72,6 +74,37 @@ const getSeenUserId = (user: ChatUser | string) => {
         : user;
 };
 
+const getReactionUserId = (user: ChatUser | string) => {
+    return typeof user === "object" && user !== null
+        ? user._id
+        : user;
+};
+
+const getOptimisticReactionMessage = (message: Message, userId: string, emoji: string) => {
+    const reactions = message.reactions || [];
+    const existingReaction = reactions.find((reaction) => getReactionUserId(reaction.user_id) === userId);
+    const reactionsWithoutCurrentUser = reactions.filter(
+        (reaction) => getReactionUserId(reaction.user_id) !== userId
+    );
+
+    const nextReactions = existingReaction?.emoji === emoji
+        ? reactionsWithoutCurrentUser
+        : [
+            ...reactionsWithoutCurrentUser,
+            {
+                user_id: userId,
+                emoji,
+                reacted_at: new Date().toISOString()
+            }
+        ];
+
+    return {
+        ...message,
+        reactions: nextReactions,
+        updatedAt: new Date().toISOString()
+    };
+};
+
 const upsertMessageList = (messages: Message[], message: Message) => {
     const existingIndex = messages.findIndex((currentMessage) => currentMessage._id === message._id);
 
@@ -96,6 +129,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     loadingConversations: false,
     loadingMessages: {},
     sendingMessage: false,
+    reactionLoading: {},
     typingUsers: {},
 
     fetchConversations: async (page = 1) => {
@@ -225,6 +259,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
             return null;
         } finally {
             set({ sendingMessage: false });
+        }
+    },
+
+    toggleReaction: async (messageId: string, emoji: string) => {
+        const { activeConversationId } = get();
+        const currentUserId = useAuthStore.getState().user?.id;
+
+        if (!activeConversationId || !currentUserId) {
+            return null;
+        }
+
+        const messageSnapshot = (get().messages[activeConversationId] || []).find(
+            (message) => message._id === messageId
+        );
+
+        if (!messageSnapshot) {
+            return null;
+        }
+
+        const optimisticMessage = getOptimisticReactionMessage(messageSnapshot, currentUserId, emoji);
+        get().applyMessageUpdate(activeConversationId, optimisticMessage);
+
+        set((state) => ({
+            reactionLoading: {
+                ...state.reactionLoading,
+                [messageId]: true
+            }
+        }));
+
+        try {
+            const message = await chatApi.toggleReaction(activeConversationId, messageId, emoji);
+            get().applyMessageUpdate(activeConversationId, message);
+            return message;
+        } catch {
+            const messageStillExists = (get().messages[activeConversationId] || []).some(
+                (message) => message._id === messageId
+            );
+
+            if (messageStillExists) {
+                get().applyMessageUpdate(activeConversationId, messageSnapshot);
+            }
+
+            return null;
+        } finally {
+            set((state) => ({
+                reactionLoading: {
+                    ...state.reactionLoading,
+                    [messageId]: false
+                }
+            }));
         }
     },
 
