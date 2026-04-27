@@ -8,8 +8,8 @@ import messageRoutes from "./message.routes.js"
 
 const router = Router();
 
-router.get("/", (req, res) => {
-    res.json({ message: "Welcome to Quick Talk API" });
+router.get("/health", (req, res) => {
+    res.json({ message: "Welcome to Quick Talk API", status: "OK", uptime: process.uptime() });
 })
 router.use("/auth", authRoutes);
 router.use("/friends", friendRoutes);
