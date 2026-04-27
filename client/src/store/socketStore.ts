@@ -102,6 +102,16 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
             }
         });
 
+        socket.on("message:reaction-updated", (data: { message: Message; conversationId: string; conversation?: Conversation }) => {
+            const chatStore = useChatStore.getState();
+
+            chatStore.applyMessageUpdate(data.conversationId, data.message);
+
+            if (data.conversation) {
+                chatStore.upsertConversation(data.conversation);
+            }
+        });
+
         socket.on("message:deleted", (data: { messageId: string; conversationId: string; conversation?: Conversation }) => {
             const chatStore = useChatStore.getState();
 

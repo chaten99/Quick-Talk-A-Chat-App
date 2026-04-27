@@ -1,5 +1,12 @@
 import Message from "../models/message.model.js";
 import ConversationMember from "../models/conversation_members.model.js";
+import mongoose from "mongoose";
+
+const MESSAGE_POPULATE = [
+    { path: "sender_id", select: "username avatar" },
+    { path: "seen_by.user_id", select: "username avatar" },
+    { path: "reactions.user_id", select: "username avatar" }
+];
 
 export const getMessagesByConversation = async (conversationId, page = 1, limit = 50) => {
     const skip = (page - 1) * limit;
@@ -8,31 +15,25 @@ export const getMessagesByConversation = async (conversationId, page = 1, limit 
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit + 1)
-        .populate("sender_id", "username avatar")
-        .populate("seen_by.user_id", "username avatar")
+        .populate(MESSAGE_POPULATE)
         .exec();
 };
 
 export const createMessage = async (messageData) => {
     const message = new Message(messageData);
     await message.save();
-    return message.populate([
-        { path: "sender_id", select: "username avatar" },
-        { path: "seen_by.user_id", select: "username avatar" }
-    ]);
+    return message.populate(MESSAGE_POPULATE);
 };
 
 export const updateMessageStatus = async (messageId, status) => {
     return Message.findByIdAndUpdate(messageId, { status }, { returnDocument: "after" })
-        .populate("sender_id", "username avatar")
-        .populate("seen_by.user_id", "username avatar")
+        .populate(MESSAGE_POPULATE)
         .exec();
 };
 
 export const getMessageById = async (messageId) => {
     return Message.findById(messageId)
-        .populate("sender_id", "username avatar")
-        .populate("seen_by.user_id", "username avatar")
+        .populate(MESSAGE_POPULATE)
         .exec();
 };
 
@@ -42,8 +43,7 @@ export const updateMessage = async (messageId, updateData) => {
         updateData,
         { returnDocument: "after" }
     )
-        .populate("sender_id", "username avatar")
-        .populate("seen_by.user_id", "username avatar")
+        .populate(MESSAGE_POPULATE)
         .exec();
 };
 
@@ -54,8 +54,7 @@ export const deleteMessageById = async (messageId) => {
 export const getLatestMessageByConversation = async (conversationId) => {
     return Message.findOne({ conversation_id: conversationId })
         .sort({ createdAt: -1 })
-        .populate("sender_id", "username avatar")
-        .populate("seen_by.user_id", "username avatar")
+        .populate(MESSAGE_POPULATE)
         .exec();
 };
 
@@ -141,4 +140,86 @@ export const markUndeliveredAsDeliveredForUser = async (userId) => {
     );
 
     return messages;
+};
+
+export const toggleMessageReaction = async (messageId, userId, emoji) => {
+    const messageObjectId = new mongoose.Types.ObjectId(messageId);
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const reactedAt = new Date();
+
+    const removedReaction = await Message.collection.updateOne(
+        {
+            _id: messageObjectId,
+            reactions: {
+                $elemMatch: {
+                    user_id: userObjectId,
+                    emoji
+                }
+            }
+        },
+        {
+            $pull: {
+                reactions: {
+                    user_id: userObjectId
+                }
+            }
+        }
+    );
+
+    if (removedReaction.modifiedCount > 0) {
+        return getMessageById(messageId);
+    }
+
+    const replacedReaction = await Message.collection.updateOne(
+        {
+            _id: messageObjectId,
+            "reactions.user_id": userObjectId
+        },
+        {
+            $set: {
+                "reactions.$.emoji": emoji,
+                "reactions.$.reacted_at": reactedAt
+            }
+        }
+    );
+
+    if (replacedReaction.modifiedCount > 0 || replacedReaction.matchedCount > 0) {
+        return getMessageById(messageId);
+    }
+
+    await Message.collection.updateOne(
+        {
+            _id: messageObjectId,
+            "reactions.user_id": { $ne: userObjectId }
+        },
+        {
+            $push: {
+                reactions: {
+                    user_id: userObjectId,
+                    emoji,
+                    reacted_at: reactedAt
+                }
+            }
+        }
+    );
+
+    return getMessageById(messageId);
+};
+
+export const removeMessageReaction = async (messageId, userId) => {
+    const messageObjectId = new mongoose.Types.ObjectId(messageId);
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    await Message.collection.updateOne(
+        { _id: messageObjectId },
+        {
+            $pull: {
+                reactions: {
+                    user_id: userObjectId
+                }
+            }
+        }
+    );
+
+    return getMessageById(messageId);
 };

@@ -2,11 +2,14 @@ import express from "express";
 import {
     deleteMessage,
     getMessages,
+    getReactions,
     markAsRead,
+    removeReaction,
     sendMessage,
+    toggleReaction,
     updateMessage
 } from "../controllers/message.controller.js";
-import {  protect } from "../middlewares/auth.middleware.js";
+import { protect } from "../middlewares/auth.middleware.js";
 import { uploadMessageAttachment } from "../middlewares/upload.middleware.js";
 
 const router = express.Router({ mergeParams: true });
@@ -95,6 +98,87 @@ router.post("/:conversationId", uploadMessageAttachment, sendMessage);
 router.patch("/:conversationId/:messageId", updateMessage);
 
 router.delete("/:conversationId/:messageId", deleteMessage);
+
+/**
+ * @swagger
+ * /messages/{conversationId}/{messageId}/reactions:
+ *   get:
+ *     summary: Get reactions for a message
+ *     tags: [Messages]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: conversationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Message reactions returned
+ */
+router.get("/:conversationId/:messageId/reactions", getReactions);
+
+/**
+ * @swagger
+ * /messages/{conversationId}/{messageId}/reactions:
+ *   put:
+ *     summary: Add, replace, or toggle a reaction on a message
+ *     tags: [Messages]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: conversationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ToggleReactionRequest'
+ *     responses:
+ *       200:
+ *         description: Reaction updated successfully
+ */
+router.put("/:conversationId/:messageId/reactions", toggleReaction);
+
+/**
+ * @swagger
+ * /messages/{conversationId}/{messageId}/reactions:
+ *   delete:
+ *     summary: Remove the authenticated user's reaction from a message
+ *     tags: [Messages]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: conversationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reaction removed successfully
+ */
+router.delete("/:conversationId/:messageId/reactions", removeReaction);
 
 /**
  * @swagger

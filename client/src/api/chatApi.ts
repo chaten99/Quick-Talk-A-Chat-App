@@ -124,6 +124,32 @@ export const chatApi = {
         return response.data.data;
     },
 
+    toggleReaction: async (conversationId: string, messageId: string, emoji: string) => {
+        const response = await apiClient.put<{ success: boolean; data: Message }>(
+            API_CONFIG.ENDPOINTS.MESSAGES.REACTIONS(conversationId, messageId),
+            { emoji }
+        );
+        return response.data.data;
+    },
+
+    removeReaction: async (conversationId: string, messageId: string) => {
+        const response = await apiClient.delete<{ success: boolean; data: Message }>(
+            API_CONFIG.ENDPOINTS.MESSAGES.REACTIONS(conversationId, messageId)
+        );
+        return response.data.data;
+    },
+
+    getReactions: async (conversationId: string, messageId: string) => {
+        const response = await apiClient.get<{
+            success: boolean;
+            data: { messageId: string; reactions: Message["reactions"] };
+        }>(
+            API_CONFIG.ENDPOINTS.MESSAGES.REACTIONS(conversationId, messageId)
+        );
+
+        return response.data.data;
+    },
+
     markAsRead: async (conversationId: string) => {
         const response = await apiClient.put<{ success: boolean; message: string }>(
             API_CONFIG.ENDPOINTS.MESSAGES.MARK_READ(conversationId)

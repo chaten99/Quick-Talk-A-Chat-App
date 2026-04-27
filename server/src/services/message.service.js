@@ -10,6 +10,10 @@ const normalizeMessageContent = (content) => {
     return typeof content === "string" ? content.trim() : "";
 };
 
+const normalizeReactionEmoji = (emoji) => {
+    return typeof emoji === "string" ? emoji.trim() : "";
+};
+
 const getMessageSenderId = (message) => {
     if (!message?.sender_id) {
         return "";
@@ -116,14 +120,20 @@ const ensureConversationMember = async (conversationId, userId) => {
 };
 
 const getOwnedMessage = async (conversationId, messageId, userId) => {
+    const message = await getConversationMessage(conversationId, messageId);
+
+    if (getMessageSenderId(message) !== userId.toString()) {
+        throw new AppError("You can only manage your own messages", 403);
+    }
+
+    return message;
+};
+
+const getConversationMessage = async (conversationId, messageId) => {
     const message = await messageRepository.getMessageById(messageId);
 
     if (!message || message.conversation_id.toString() !== conversationId.toString()) {
         throw new AppError("Message not found", 404);
-    }
-
-    if (getMessageSenderId(message) !== userId.toString()) {
-        throw new AppError("You can only manage your own messages", 403);
     }
 
     return message;
@@ -328,6 +338,66 @@ export const deleteMessage = async (conversationId, messageId, userId) => {
 
     return {
         messageId
+    };
+};
+
+export const toggleReaction = async (conversationId, messageId, userId, emoji) => {
+    await ensureConversationMember(conversationId, userId);
+
+    const normalizedEmoji = normalizeReactionEmoji(emoji);
+
+    if (!normalizedEmoji) {
+        throw new AppError("Emoji is required", 400);
+    }
+
+    await getConversationMessage(conversationId, messageId);
+
+    const message = await messageRepository.toggleMessageReaction(
+        messageId,
+        userId,
+        normalizedEmoji
+    );
+
+    if (!message) {
+        throw new AppError("Message not found", 404);
+    }
+
+    await emitMessageEventToMembers(conversationId, "message:reaction-updated", (targetUserId, conversation) => ({
+        conversationId,
+        message,
+        conversation
+    }));
+
+    return message;
+};
+
+export const removeReaction = async (conversationId, messageId, userId) => {
+    await ensureConversationMember(conversationId, userId);
+    await getConversationMessage(conversationId, messageId);
+
+    const message = await messageRepository.removeMessageReaction(messageId, userId);
+
+    if (!message) {
+        throw new AppError("Message not found", 404);
+    }
+
+    await emitMessageEventToMembers(conversationId, "message:reaction-updated", (targetUserId, conversation) => ({
+        conversationId,
+        message,
+        conversation
+    }));
+
+    return message;
+};
+
+export const getMessageReactions = async (conversationId, messageId, userId) => {
+    await ensureConversationMember(conversationId, userId);
+
+    const message = await getConversationMessage(conversationId, messageId);
+
+    return {
+        messageId: message._id.toString(),
+        reactions: message.reactions || []
     };
 };
 
